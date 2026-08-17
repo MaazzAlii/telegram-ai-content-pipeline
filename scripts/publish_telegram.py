@@ -71,6 +71,8 @@ def send_telegram_message(bot_token: str, chat_id: str, text: str) -> dict:
             if parse_mode == "Markdown":
                 continue
             return {"ok": False, "description": err_body}
+        except (TimeoutError, urllib.error.URLError) as e:
+            return {"ok": False, "description": f"Connection/SSL Timeout to Telegram API: {e}"}
         except Exception as e:
             return {"ok": False, "description": str(e)}
 
