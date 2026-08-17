@@ -1,0 +1,37 @@
+# Curated Source Feeds for Telegram AI Content Pipeline
+# Format:
+#   category:
+#     - name: Source Name
+#       url: RSS/Feed URL
+#       trust_level: 1-4 (1 = Official/Primary, 2 = Reputable News, 3 = Community, 4 = Aggregator)
+
+sources:
+  ai_news:
+    - name: "OpenAI News"
+      url: "https://openai.com/news/rss.xml"
+      trust_level: 1
+    - name: "Google AI Blog"
+      url: "https://blog.google/technology/ai/rss/"
+      trust_level: 1
+    - name: "Anthropic News"
+      url: "https://www.anthropic.com/news/rss"
+      trust_level: 1
+    - name: "MIT Technology Review AI"
+      url: "https://www.technologyreview.com/topic/artificial-intelligence/feed"
+      trust_level: 2
+    - name: "TechCrunch AI"
+      url: "https://techcrunch.com/category/artificial-intelligence/feed/"
+      trust_level: 2
+    - name: "Hugging Face Blog"
+      url: "https://huggingface.co/blog/feed.xml"
+      trust_level: 1
+
+  ai_tools:
+    - name: "Product Hunt AI"
+      url: "https://www.producthunt.com/feed?category=artificial-intelligence"
+      trust_level: 3
+
+  learning_resources:
+    - name: "ArXiv AI Papers"
+      url: "https://export.arxiv.org/rss/cs.AI"
+      trust_level: 1
