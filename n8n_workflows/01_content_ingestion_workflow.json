@@ -1,0 +1,149 @@
+{
+  "name": "01 - Telegram AI Content Ingestion",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger (Every 30m)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://techcrunch.com/category/artificial-intelligence/feed/"
+      },
+      "name": "Fetch TechCrunch AI",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [420, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://feeds.arstechnica.com/arstechnica/index"
+      },
+      "name": "Fetch Ars Technica",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [420, 380]
+    },
+    {
+      "parameters": {
+        "url": "https://www.bleepingcomputer.com/feed/"
+      },
+      "name": "Fetch BleepingComputer",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [420, 560]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst cleaned = [];\n\nfor (const item of items) {\n  const json = item.json;\n  const title = json.title || '';\n  const link = json.link || json.guid || '';\n  const desc = (json.contentSnippet || json.description || title).replace(/<[^>]+>/g, '').trim();\n  \n  if (title && link) {\n    cleaned.push({\n      json: {\n        id: Math.random().toString(36).substring(2, 10),\n        source_title: title,\n        source_url: link,\n        topic_pillar: json.pillar || 'AI_INDUSTRY_STARTUPS',\n        raw_text: desc.slice(0, 1200),\n        status: 'PENDING',\n        quality_score: 0.85,\n        created_at: new Date().toISOString()\n      }\n    });\n  }\n}\n\nreturn cleaned;"
+      },
+      "name": "Normalize & Clean Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 360]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Content_Queue",
+        "matchingColumn": "source_url",
+        "fields": {
+          "id": "={{ $json.id }}",
+          "source_title": "={{ $json.source_title }}",
+          "source_url": "={{ $json.source_url }}",
+          "topic_pillar": "={{ $json.topic_pillar }}",
+          "raw_text": "={{ $json.raw_text }}",
+          "status": "PENDING",
+          "quality_score": "={{ $json.quality_score }}",
+          "created_at": "={{ $json.created_at }}"
+        }
+      },
+      "name": "Save to Google Sheets Queue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [920, 360]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Every 30m)": {
+      "main": [
+        [
+          {
+            "node": "Fetch TechCrunch AI",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Ars Technica",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch BleepingComputer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch TechCrunch AI": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Clean Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Ars Technica": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Clean Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch BleepingComputer": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Clean Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize & Clean Items": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Sheets Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
