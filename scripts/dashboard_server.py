@@ -127,7 +127,7 @@ def fetch_sheet_queue() -> dict:
                 approved_count += 1
             elif status == "PUBLISHED":
                 published_count += 1
-            elif status == "REJECTED":
+            elif status.startswith("REJECTED"):
                 rejected_count += 1
 
             raw_txt = r[4] if len(r) > 4 else ""

@@ -28,20 +28,48 @@ if not (BASE_DIR / CREDENTIALS_FILE).exists() and os.environ.get("GOOGLE_SERVICE
         f.write(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
 
 PROMPT_MAP = {
+    "AI_NEWS": "ai_news.md",
     "AI_TOOLS": "ai_tools.md",
     "AI_INDUSTRY_STARTUPS": "ai_industry_startups.md",
+    "AGENTIC_AI": "agentic_ai.md",
+    "AI_AUTOMATION": "ai_automation.md",
+    "AI_CAREER": "ai_career.md",
     "CYBERSECURITY": "cybersecurity.md",
     "LEARNING_RESOURCES": "learning_resources.md",
     "TECH_DEVELOPMENT": "technology.md",
+    "TOP10_PROMPTS": "top10_prompts.md",
 }
 
 PILLAR_EMOJIS = {
+    "AI_NEWS": "🚨",
     "AI_TOOLS": "🛠️",
     "AI_INDUSTRY_STARTUPS": "🚀",
+    "AGENTIC_AI": "🤖",
+    "AI_AUTOMATION": "⚙️",
+    "AI_CAREER": "💼",
     "CYBERSECURITY": "🛡️",
     "LEARNING_RESOURCES": "📚",
     "TECH_DEVELOPMENT": "⚡",
+    "TOP10_PROMPTS": "💡",
 }
+
+# Refusal & out-of-scope phrases (Fix 1 Stage 4)
+REFUSAL_PHRASES = [
+    "does not contain information",
+    "not relevant to",
+    "out of scope",
+    "i cannot",
+    "i'm unable to",
+    "i am unable to",
+    "no information provided",
+    "topic out of scope",
+    "as an ai",
+    "as a language model",
+    "i do not have enough information",
+    "cannot fulfill this request",
+    "does not mention",
+    "is not mentioned in the provided text"
+]
 
 
 def load_env_var(key: str, default: str = "") -> str:
@@ -73,6 +101,7 @@ CRITICAL INSTRUCTIONS FOR TELEGRAM BROADCAST:
 
 
 def load_prompt_template(pillar: str) -> str:
+    """Loads system prompt verbatim from prompts/*.md per Fix 4."""
     filename = PROMPT_MAP.get(pillar, "technology.md")
     prompt_path = PROMPTS_DIR / filename
     base_prompt = ""
@@ -102,6 +131,8 @@ def sanitize_text(text: str) -> str:
 
 def clean_json_string(text: str) -> str:
     """Extracts valid JSON object from LLM string if wrapped in markdown code blocks or extra text."""
+    if not text:
+        return ""
     text = text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\s*```$", "", text)
@@ -111,70 +142,106 @@ def clean_json_string(text: str) -> str:
     return text
 
 
-def format_to_clean_telegram_post(raw_ai_text: str, fallback_title: str, source_url: str, pillar: str) -> str:
+def validate_ai_response(raw_ai_text: str, fallback_title: str, source_url: str, pillar: str) -> tuple:
     """
-    Parses JSON output from LLM and formats it into a clean, professional,
-    high-engagement Telegram message without any template artifacts or meta-labels.
+    FIX 1: Strict 5-stage validation gate.
+    Returns: (is_valid: bool, error_reason: str, clean_formatted_post: str, parsed_json: dict)
     """
-    emoji = PILLAR_EMOJIS.get(pillar, "⚡")
+    if not raw_ai_text or not raw_ai_text.strip():
+        return False, "Empty response from AI router", "", {}
+
+    # Stage 1: JSON Parse Check
     json_candidate = clean_json_string(raw_ai_text)
-    
     try:
         data = json.loads(json_candidate)
-        headline = sanitize_text(data.get("headline") or fallback_title)
-        hook = sanitize_text(data.get("hook", ""))
-        body = sanitize_text(data.get("body", ""))
-        why_it_matters = sanitize_text(data.get("why_it_matters", ""))
-        key_points = data.get("key_points", [])
-        hashtags = data.get("hashtags", [])
+        if not isinstance(data, dict):
+            return False, "JSON Parse Check Failed: Output root is not an object", "", {}
+    except Exception as e:
+        return False, f"JSON Parse Check Failed: {e}", "", {}
 
-        lines = []
-        # Header
-        if headline:
-            lines.append(f"{emoji} *{headline}*\n")
-        
-        # Hook / Intro
-        if hook:
-            lines.append(f"{hook}\n")
-        
-        # If body is structured text, clean it up
-        if body and body != hook and body != headline:
-            lines.append(f"{body}\n")
-        elif why_it_matters:
-            lines.append(f"*Why it matters:*\n{why_it_matters}\n")
+    # Stage 2: Required Fields Check
+    headline = sanitize_text(data.get("headline") or "")
+    body = sanitize_text(data.get("body") or "")
+    url = data.get("source_url") or data.get("url") or source_url or ""
+    category = data.get("category") or pillar
 
-        # Key Takeaways
-        if key_points and isinstance(key_points, list):
-            clean_points = [sanitize_text(p).lstrip("•-* ") for p in key_points if p and p.strip()]
-            clean_points = [p for p in clean_points if p and p != headline]
-            if clean_points and not any(p in body for p in clean_points[:2]):
-                lines.append("*Key Takeaways:*")
-                for pt in clean_points[:4]:
-                    lines.append(f"• {pt}")
-                lines.append("")
+    if not headline:
+        return False, "Required Fields Check Failed: 'headline' is missing or empty", "", {}
+    if not body:
+        return False, "Required Fields Check Failed: 'body' is missing or empty", "", {}
+    if not url:
+        return False, "Required Fields Check Failed: 'source_url' is missing or empty", "", {}
 
-        # Source link
-        clean_url = data.get("source_url") or source_url
-        if clean_url:
-            lines.append(f"🔗 [Read Full Article]({clean_url})\n")
+    # Stage 3: Minimum Length Check (catches truncated JSON leaks)
+    if len(body) < 100:
+        return False, f"Minimum Length Check Failed: body length ({len(body)} chars) is under 100 char threshold", "", {}
 
-        # Hashtags
-        if hashtags and isinstance(hashtags, list):
-            tag_str = " ".join([f"#{t.replace(' ', '').replace('-', '')}" for t in hashtags if t])
+    # Stage 4: Refusal / Out-of-Scope Phrase Check
+    combined_content = f"{headline} {body} {data.get('hook', '')} {data.get('why_it_matters', '')}".lower()
+    for refusal in REFUSAL_PHRASES:
+        if refusal in combined_content:
+            return False, f"Refusal/Out-of-Scope Check Failed: matches '{refusal}'", "", {}
+
+    # Stage 5: Duplicate Hashtag & Format Sanity Check (auto-clean)
+    emoji = PILLAR_EMOJIS.get(pillar, "⚡")
+    hook = sanitize_text(data.get("hook", ""))
+    why_it_matters = sanitize_text(data.get("why_it_matters", ""))
+    key_points = data.get("key_points", [])
+    hashtags = data.get("hashtags", [])
+
+    lines = []
+    # Clean single-line headline with emoji
+    lines.append(f"{emoji} *{headline}*\n")
+
+    # Hook
+    if hook and hook != headline:
+        lines.append(f"{hook}\n")
+
+    # Clean body
+    if body and body != hook and body != headline:
+        # Strip duplicate "Key takeaways" header if present inside body
+        body_clean = re.sub(r"(?i)\*?Key takeaways\*?:\s*", "", body).strip()
+        lines.append(f"{body_clean}\n")
+    elif why_it_matters:
+        lines.append(f"*Why it matters:*\n{why_it_matters}\n")
+
+    # Key Takeaways (one section maximum)
+    if key_points and isinstance(key_points, list):
+        clean_points = [sanitize_text(p).lstrip("•-* ") for p in key_points if p and p.strip()]
+        clean_points = [p for p in clean_points if p and p != headline]
+        if clean_points and not any(p in body for p in clean_points[:2]):
+            lines.append("*Key Takeaways:*")
+            for pt in clean_points[:4]:
+                lines.append(f"• {pt}")
+            lines.append("")
+
+    # Clean single URL link
+    lines.append(f"🔗 [Read Full Article]({url})\n")
+
+    # Sanitize hashtags (ensure single '#', strip '##')
+    if hashtags and isinstance(hashtags, list):
+        clean_tags = []
+        for tag in hashtags:
+            if not tag:
+                continue
+            tag_str = str(tag).strip().lstrip("#").replace(" ", "").replace("-", "")
             if tag_str:
-                lines.append(tag_str)
-        elif pillar:
-            lines.append(f"#{pillar.replace('_', '')} #TechNews #AI")
+                clean_tags.append(f"#{tag_str}")
+        if clean_tags:
+            lines.append(" ".join(clean_tags))
+    else:
+        lines.append(f"#{pillar.replace('_', '')} #TechNews #AI")
 
-        formatted_post = "\n".join(lines).strip()
-        return formatted_post
+    formatted_post = "\n".join(lines).strip()
+    return True, "OK", formatted_post, data
 
-    except Exception:
-        # If not valid JSON, clean up any code artifacts and return clean text
-        clean_text = sanitize_text(raw_ai_text)
-        if source_url and source_url not in clean_text:
-            clean_text += f"\n\n🔗 [Read Full Article]({source_url})"
-        return clean_text
+
+def format_to_clean_telegram_post(raw_ai_text: str, fallback_title: str, source_url: str, pillar: str) -> str:
+    """Formats AI response into clean Telegram post passing validation gate."""
+    is_valid, error, clean_post, _ = validate_ai_response(raw_ai_text, fallback_title, source_url, pillar)
+    if is_valid:
+        return clean_post
+    return sanitize_text(raw_ai_text)
 
 
 def generate_with_gemini_key(api_key: str, system_prompt: str, content: str) -> str:
@@ -268,12 +335,15 @@ def generate_with_groq(api_key: str, system_prompt: str, content: str) -> str:
 
 
 def generate_ai_post(system_prompt: str, content: str, title: str, url: str, pillar: str) -> tuple:
+    """
+    Executes AI Router through fallback providers and runs the 5-stage validation gate.
+    Returns: (formatted_post, provider_name, is_valid, error_reason)
+    """
     gemini_keys = get_gemini_keys()
     mistral_key = load_env_var("MISTRAL_API_KEY")
     groq_key = load_env_var("GROQ_API_KEY")
 
-    raw_output = ""
-    provider_name = "None"
+    last_error = "No AI providers configured or available"
 
     # 1. Try Gemini Keys in order
     for idx, key in enumerate(gemini_keys, start=1):
@@ -281,37 +351,49 @@ def generate_ai_post(system_prompt: str, content: str, title: str, url: str, pil
             print(f"    [AI Router] Attempting Gemini Key #{idx} ({key[:8]}...)...")
             raw_output = generate_with_gemini_key(key, system_prompt, content)
             if raw_output:
-                provider_name = f"Gemini Key #{idx}"
-                break
+                is_valid, err_reason, clean_post, _ = validate_ai_response(raw_output, title, url, pillar)
+                if is_valid:
+                    return clean_post, f"Gemini Key #{idx}", True, "OK"
+                else:
+                    print(f"    [Validation Gate] ❌ Gemini Key #{idx} output failed validation: {err_reason}")
+                    last_error = f"Gemini Key #{idx} validation error: {err_reason}"
         except Exception as e:
             print(f"    [AI Router] Gemini Key #{idx} failed / rate-limited: {e}")
+            last_error = str(e)
 
     # 2. Fallback to Mistral AI
-    if not raw_output and mistral_key:
+    if mistral_key:
         try:
-            print(f"    [AI Router] ⚠️ All Gemini keys exhausted. Falling back to Mistral AI...")
+            print(f"    [AI Router] ⚠️ Gemini exhausted. Falling back to Mistral AI...")
             raw_output = generate_with_mistral(mistral_key, system_prompt, content)
             if raw_output:
-                provider_name = "Mistral AI"
+                is_valid, err_reason, clean_post, _ = validate_ai_response(raw_output, title, url, pillar)
+                if is_valid:
+                    return clean_post, "Mistral AI", True, "OK"
+                else:
+                    print(f"    [Validation Gate] ❌ Mistral AI output failed validation: {err_reason}")
+                    last_error = f"Mistral AI validation error: {err_reason}"
         except Exception as e:
             print(f"    [AI Router] Mistral fallback failed: {e}")
+            last_error = str(e)
 
     # 3. Fallback to Groq Cloud
-    if not raw_output and groq_key:
+    if groq_key:
         try:
-            print(f"    [AI Router] ⚠️ Mistral failed. Falling back to Groq Llama-3.3...")
+            print(f"    [AI Router] ⚠️ Mistral exhausted. Falling back to Groq Llama-3.3...")
             raw_output = generate_with_groq(groq_key, system_prompt, content)
             if raw_output:
-                provider_name = "Groq Cloud"
+                is_valid, err_reason, clean_post, _ = validate_ai_response(raw_output, title, url, pillar)
+                if is_valid:
+                    return clean_post, "Groq Cloud", True, "OK"
+                else:
+                    print(f"    [Validation Gate] ❌ Groq output failed validation: {err_reason}")
+                    last_error = f"Groq validation error: {err_reason}"
         except Exception as e:
             print(f"    [AI Router] Groq fallback failed: {e}")
+            last_error = str(e)
 
-    if not raw_output:
-        return "", "None"
-
-    # Format into beautiful clean Telegram post
-    formatted_post = format_to_clean_telegram_post(raw_output, title, url, pillar)
-    return formatted_post, provider_name
+    return "", "None", False, last_error
 
 
 def process_queue(credentials_path: str, spreadsheet_id: str, limit: int = 10):
@@ -341,11 +423,13 @@ def process_queue(credentials_path: str, spreadsheet_id: str, limit: int = 10):
         return
 
     processed_count = 0
+    rejected_count = 0
+
     for idx, row in enumerate(rows, start=2):
         if processed_count >= limit:
             break
 
-        # Schema: id(0), source_title(1), source_url(2), topic_pillar(3), raw_text(4), ai_summary(5), telegram_post_text(6), status(7)
+        # Schema: id(0), source_title(1), source_url(2), topic_pillar(3), raw_text(4), ai_summary(5), telegram_post_text(6), status(7)... error_log(12)
         status = row[7] if len(row) > 7 else ""
         if status == "PENDING":
             title = row[1] if len(row) > 1 else ""
@@ -357,9 +441,9 @@ def process_queue(credentials_path: str, spreadsheet_id: str, limit: int = 10):
             prompt_template = load_prompt_template(pillar)
             combined_content = f"Title: {title}\nURL: {url}\nSummary/Context: {raw_text}"
             
-            ai_post, provider = generate_ai_post(prompt_template, combined_content, title, url, pillar)
-            if ai_post:
-                # Update status to APPROVED, ai_summary, telegram_post_text
+            ai_post, provider, is_valid, err_reason = generate_ai_post(prompt_template, combined_content, title, url, pillar)
+            if is_valid and ai_post:
+                # Update status to APPROVED, ai_summary, telegram_post_text, clear error_log
                 service.spreadsheets().values().update(
                     spreadsheetId=spreadsheet_id,
                     range=f"'Content_Queue'!F{idx}:H{idx}",
@@ -368,12 +452,33 @@ def process_queue(credentials_path: str, spreadsheet_id: str, limit: int = 10):
                         "values": [[raw_text[:250], ai_post, "APPROVED"]]
                     }
                 ).execute()
-                print(f"  [OK] Generated clean post using {provider}! Updated row {idx} to APPROVED.")
+                # Clear error_log column M (col 13)
+                service.spreadsheets().values().update(
+                    spreadsheetId=spreadsheet_id,
+                    range=f"'Content_Queue'!M{idx}",
+                    valueInputOption="USER_ENTERED",
+                    body={"values": [[""]]}
+                ).execute()
+                print(f"  [OK] ✅ Validation Gate Passed via {provider}! Row {idx} marked APPROVED.")
                 processed_count += 1
             else:
-                print(f"  [!] Failed generating AI post for row {idx} across all providers.")
+                # Reject row and write error reason into error_log so it NEVER reaches publishing
+                service.spreadsheets().values().update(
+                    spreadsheetId=spreadsheet_id,
+                    range=f"'Content_Queue'!H{idx}",
+                    valueInputOption="USER_ENTERED",
+                    body={"values": [["REJECTED_VALIDATION"]]}
+                ).execute()
+                service.spreadsheets().values().update(
+                    spreadsheetId=spreadsheet_id,
+                    range=f"'Content_Queue'!M{idx}",
+                    valueInputOption="USER_ENTERED",
+                    body={"values": [[f"Validation Gate: {err_reason}"]]}
+                ).execute()
+                print(f"  [!] ❌ Validation Gate REJECTED row {idx}: {err_reason}. Marked REJECTED_VALIDATION.")
+                rejected_count += 1
 
-    print(f"\n[SUCCESS] Successfully formatted {processed_count} items with AI!\n")
+    print(f"\n[SUMMARY] AI Processing Complete: {processed_count} approved, {rejected_count} rejected by Validation Gate.\n")
 
 
 def reformat_existing_approved_rows(credentials_path: str, spreadsheet_id: str):
