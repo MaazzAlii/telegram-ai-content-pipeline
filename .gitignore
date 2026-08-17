@@ -6,6 +6,11 @@
 # Service account keys and credential exports
 *service-account*.json
 *service_account*.json
+telegram-ai-pipeline*.json
+*.json
+!config/sheets_schema.json
+!n8n_workflows/**/*.json
+!workflows/**/*.json
 credentials.json
 credentials-*.json
 client_secret*.json
