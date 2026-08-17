@@ -45,7 +45,6 @@
         radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.07) 0%, transparent 40%);
     }
 
-    /* Top Navigation Bar */
     header {
       background: rgba(18, 24, 36, 0.85);
       backdrop-filter: blur(16px);
@@ -103,12 +102,6 @@
       display: flex;
       align-items: center;
       gap: 0.4rem;
-      transition: all 0.2s;
-    }
-
-    .badge-channel:hover {
-      background: rgba(59, 130, 246, 0.25);
-      transform: translateY(-1px);
     }
 
     .badge-sheet {
@@ -125,42 +118,33 @@
       gap: 0.4rem;
     }
 
-    /* Container */
     main {
-      max-width: 1400px;
+      max-width: 1440px;
       width: 100%;
       margin: 0 auto;
-      padding: 2rem;
+      padding: 1.5rem 2rem;
       display: flex;
       flex-direction: column;
-      gap: 2rem;
+      gap: 1.5rem;
       flex: 1;
     }
 
     /* KPI Stats Grid */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 1.25rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
     }
 
     .stat-card {
       background: var(--bg-card);
       backdrop-filter: blur(12px);
       border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 1.5rem;
+      border-radius: 14px;
+      padding: 1.25rem;
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
-      position: relative;
-      overflow: hidden;
-      transition: transform 0.2s, border-color 0.2s;
-    }
-
-    .stat-card:hover {
-      transform: translateY(-2px);
-      border-color: var(--border-glow);
+      gap: 0.4rem;
     }
 
     .stat-header {
@@ -168,18 +152,18 @@
       justify-content: space-between;
       align-items: center;
       color: var(--text-muted);
-      font-size: 0.875rem;
-      font-weight: 500;
+      font-size: 0.8rem;
+      font-weight: 600;
     }
 
     .stat-value {
-      font-size: 2.25rem;
+      font-size: 2rem;
       font-weight: 800;
       color: var(--text-main);
     }
 
     .stat-badge {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       padding: 0.2rem 0.5rem;
       border-radius: 6px;
       font-weight: 600;
@@ -190,50 +174,59 @@
     .badge-blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
     .badge-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
 
-    /* Action Toolbar */
+    /* AutoPilot & Action Banner */
+    .control-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 900px) {
+      .control-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .action-panel {
       background: var(--bg-card);
       backdrop-filter: blur(12px);
       border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 1.5rem;
+      border-radius: 14px;
+      padding: 1.25rem;
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
       gap: 1rem;
-      align-items: center;
-      justify-content: space-between;
     }
 
     .action-group {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.75rem;
+      gap: 0.6rem;
     }
 
     .btn {
       appearance: none;
       border: none;
       outline: none;
-      padding: 0.75rem 1.4rem;
-      border-radius: 10px;
+      padding: 0.65rem 1.2rem;
+      border-radius: 8px;
       font-family: inherit;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.4rem;
       transition: all 0.2s;
     }
 
     .btn-primary {
       background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
       color: white;
-      box-shadow: 0 4px 14px rgba(6, 182, 212, 0.3);
     }
 
     .btn-primary:hover {
-      box-shadow: 0 6px 20px rgba(6, 182, 212, 0.5);
+      box-shadow: 0 4px 15px rgba(6, 182, 212, 0.4);
       transform: translateY(-1px);
     }
 
@@ -245,7 +238,16 @@
 
     .btn-secondary:hover {
       background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-success {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+
+    .btn-success:hover {
+      background: rgba(16, 185, 129, 0.35);
     }
 
     .btn-danger {
@@ -258,16 +260,68 @@
       background: rgba(244, 63, 94, 0.25);
     }
 
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    /* Auto-Pilot Card */
+    .autopilot-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 0.75rem;
     }
 
-    /* Content Area & Queue Table */
+    .toggle-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 26px;
+    }
+
+    .switch input { opacity: 0; width: 0; height: 0; }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background-color: #334155;
+      transition: .3s;
+      border-radius: 34px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald));
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
+
+    /* Content Split Area */
     .content-section {
       display: grid;
-      grid-template-columns: 2fr 1fr;
-      gap: 1.5rem;
+      grid-template-columns: 2.2fr 1fr;
+      gap: 1.25rem;
     }
 
     @media (max-width: 1024px) {
@@ -280,38 +334,50 @@
       background: var(--bg-card);
       backdrop-filter: blur(12px);
       border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 1.5rem;
+      border-radius: 14px;
+      padding: 1.25rem;
       display: flex;
       flex-direction: column;
-      gap: 1rem;
-      max-height: 650px;
+      gap: 0.75rem;
+      max-height: 680px;
     }
 
-    .panel-title {
-      font-size: 1.1rem;
-      font-weight: 700;
+    .panel-header-controls {
       display: flex;
-      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
       align-items: center;
+      justify-content: space-between;
+    }
+
+    .filter-select {
+      background: #182232;
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.4rem 0.8rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      outline: none;
+      cursor: pointer;
     }
 
     .table-container {
       overflow-y: auto;
       border-radius: 8px;
+      flex: 1;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
       text-align: left;
-      font-size: 0.875rem;
+      font-size: 0.825rem;
     }
 
     th {
-      background: rgba(18, 24, 36, 0.8);
+      background: rgba(18, 24, 36, 0.9);
       color: var(--text-muted);
-      padding: 0.75rem 1rem;
+      padding: 0.65rem 0.8rem;
       font-weight: 600;
       position: sticky;
       top: 0;
@@ -319,7 +385,7 @@
     }
 
     td {
-      padding: 1rem;
+      padding: 0.75rem 0.8rem;
       border-bottom: 1px solid rgba(255, 255, 255, 0.04);
       color: var(--text-main);
     }
@@ -329,54 +395,58 @@
     }
 
     .pillar-tag {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       font-weight: 600;
-      padding: 0.25rem 0.5rem;
+      padding: 0.2rem 0.45rem;
       border-radius: 6px;
-      display: inline-block;
       background: rgba(148, 163, 184, 0.1);
       color: var(--text-muted);
     }
 
     .status-pill {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       font-weight: 700;
-      padding: 0.25rem 0.6rem;
+      padding: 0.2rem 0.5rem;
       border-radius: 9999px;
-      display: inline-block;
     }
 
     .status-PENDING { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
     .status-APPROVED { background: rgba(16, 185, 129, 0.2); color: #34d399; }
     .status-PUBLISHED { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
 
+    .btn-row {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.72rem;
+      border-radius: 6px;
+    }
+
     /* Live Terminal Console */
     .terminal {
       background: #06090e;
       border: 1px solid var(--border-color);
-      border-radius: 12px;
-      padding: 1rem;
+      border-radius: 10px;
+      padding: 0.8rem;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       color: #38bdf8;
       overflow-y: auto;
       flex: 1;
       min-height: 250px;
-      max-height: 520px;
-      line-height: 1.5;
+      max-height: 580px;
+      line-height: 1.45;
     }
 
     .terminal-line {
       white-space: pre-wrap;
       word-break: break-word;
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.2rem;
     }
 
-    /* Modal for Post Preview */
+    /* Modal for Post Editing & Preview */
     .modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.7);
+      background: rgba(0, 0, 0, 0.75);
       backdrop-filter: blur(8px);
       display: flex;
       align-items: center;
@@ -395,27 +465,39 @@
     .modal-card {
       background: var(--bg-surface);
       border: 1px solid var(--border-color);
-      border-radius: 20px;
-      max-width: 600px;
-      width: 90%;
-      padding: 2rem;
+      border-radius: 16px;
+      max-width: 650px;
+      width: 92%;
+      padding: 1.5rem;
       display: flex;
       flex-direction: column;
-      gap: 1.25rem;
+      gap: 1rem;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     }
 
-    .preview-box {
-      background: #182232;
-      border: 1px solid rgba(59, 130, 246, 0.2);
-      border-radius: 12px;
-      padding: 1.25rem;
-      font-size: 0.95rem;
-      line-height: 1.6;
-      white-space: pre-wrap;
-      max-height: 350px;
-      overflow-y: auto;
-      color: #e2e8f0;
+    .edit-textarea {
+      width: 100%;
+      height: 280px;
+      background: #0b0f17;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      color: #f8fafc;
+      padding: 1rem;
+      font-family: inherit;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      resize: vertical;
+      outline: none;
+    }
+
+    .edit-textarea:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
   </style>
 </head>
@@ -469,36 +551,61 @@
 
       <div class="stat-card">
         <div class="stat-header">
-          <span>AI Provider Pool</span>
-          <span class="stat-badge badge-purple">Active Failover</span>
+          <span>AI Multi-Failover</span>
+          <span class="stat-badge badge-purple">Active</span>
         </div>
-        <div class="stat-value" style="font-size: 1.25rem; font-weight: 700; margin-top: 0.5rem;">
+        <div class="stat-value" style="font-size: 1.1rem; font-weight: 700; margin-top: 0.4rem;">
           Gemini (x5) ➔ Mistral ➔ Groq
         </div>
       </div>
     </div>
 
-    <!-- 1-Click Action Toolbar -->
-    <div class="action-panel">
-      <div class="action-group">
-        <button class="btn btn-primary" onclick="triggerAction('all')">
-          🚀 Run Full Cycle
-        </button>
-        <button class="btn btn-secondary" onclick="triggerAction('ingest')">
-          📥 Fetch Feeds
-        </button>
-        <button class="btn btn-secondary" onclick="triggerAction('process-ai')">
-          🧠 AI Auto-Format
-        </button>
-        <button class="btn btn-secondary" onclick="triggerAction('publish')">
-          📢 Publish to Telegram
-        </button>
+    <!-- Controls & Auto-Pilot Row -->
+    <div class="control-row">
+      <!-- 1-Click Action Toolbar -->
+      <div class="action-panel">
+        <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);">⚡ MANUAL PIPELINE CONTROLS</div>
+        <div class="action-group">
+          <button class="btn btn-primary" onclick="triggerAction('all')">
+            🚀 Run Full Cycle
+          </button>
+          <button class="btn btn-secondary" onclick="triggerAction('ingest')">
+            📥 Ingest Feeds
+          </button>
+          <button class="btn btn-secondary" onclick="triggerAction('process-ai')">
+            🧠 AI Auto-Format
+          </button>
+          <button class="btn btn-secondary" onclick="triggerAction('publish')">
+            📢 Publish Next Approved
+          </button>
+          <button class="btn btn-danger" onclick="triggerAction('clear-queue')">
+            🧹 Clear Queue
+          </button>
+        </div>
       </div>
 
-      <div class="action-group">
-        <button class="btn btn-danger" onclick="triggerAction('clear-queue')">
-          🧹 Clear Queue
-        </button>
+      <!-- Auto-Pilot Scheduler Card -->
+      <div class="autopilot-card">
+        <div class="toggle-wrapper">
+          <div>
+            <div style="font-size: 0.85rem; font-weight: 700;">⏰ AUTO-PILOT SCHEDULER</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);" id="autopilot-status-text">Auto-posts 2-3 times/day</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="autopilot-toggle" onchange="toggleAutopilot()">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <span style="font-size: 0.75rem; color: var(--text-muted);">Frequency:</span>
+          <select id="autopilot-freq" class="filter-select" onchange="toggleAutopilot()">
+            <option value="4">Every 4 Hours (6 posts/day)</option>
+            <option value="6">Every 6 Hours (4 posts/day)</option>
+            <option value="8" selected>Every 8 Hours (3 posts/day)</option>
+            <option value="12">Every 12 Hours (2 posts/day)</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -506,9 +613,21 @@
     <div class="content-section">
       <!-- Live Content Queue Table -->
       <div class="panel">
-        <div class="panel-title">
-          <span>Content Queue (Live Sheet Sync)</span>
-          <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: normal;">Auto-refreshing</span>
+        <div class="panel-header-controls">
+          <span style="font-weight: 700; font-size: 0.95rem;">Queue & Post Inspector</span>
+          
+          <!-- Topic Filter -->
+          <div style="display: flex; gap: 0.4rem; align-items: center;">
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Filter:</span>
+            <select id="pillar-filter" class="filter-select" onchange="renderQueueTable()">
+              <option value="ALL">All Categories</option>
+              <option value="AI_TOOLS">🛠️ AI Tools</option>
+              <option value="AI_INDUSTRY_STARTUPS">🚀 AI Startups & News</option>
+              <option value="CYBERSECURITY">🛡️ Cybersecurity</option>
+              <option value="LEARNING_RESOURCES">📚 Learning Resources</option>
+              <option value="TECH_DEVELOPMENT">⚡ Tech Development</option>
+            </select>
+          </div>
         </div>
 
         <div class="table-container">
@@ -518,7 +637,7 @@
                 <th>Article Title</th>
                 <th>Pillar</th>
                 <th>Status</th>
-                <th>Action</th>
+                <th style="text-align: right;">Actions</th>
               </tr>
             </thead>
             <tbody id="queue-tbody">
@@ -532,31 +651,45 @@
 
       <!-- Realtime Execution Terminal -->
       <div class="panel">
-        <div class="panel-title">
-          <span>Live Console Output</span>
+        <div class="panel-header-controls">
+          <span style="font-weight: 700; font-size: 0.95rem;">Live Console Output</span>
           <span id="log-status" style="font-size: 0.75rem; color: var(--accent-emerald);">● Online</span>
         </div>
         <div class="terminal" id="terminal-console">
-          <div class="terminal-line">> System initialized. Click an action above to execute.</div>
+          <div class="terminal-line">> System initialized. Ready.</div>
         </div>
       </div>
     </div>
 
   </main>
 
-  <!-- Post Preview Modal -->
-  <div class="modal-backdrop" id="preview-modal" onclick="closeModal(event)">
+  <!-- Post Editor & Referral Link Modal -->
+  <div class="modal-backdrop" id="edit-modal" onclick="closeModal(event)">
     <div class="modal-card" onclick="event.stopPropagation()">
-      <h2 style="font-size: 1.25rem;">📱 Telegram Post Preview</h2>
-      <div class="preview-box" id="modal-post-text"></div>
-      <div style="display: flex; justify-content: flex-end;">
-        <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="font-size: 1.1rem; font-weight: 700;">✏️ Edit Post & Add Referral Links</h2>
+        <span id="modal-row-tag" class="pillar-tag">Row #</span>
+      </div>
+
+      <p style="font-size: 0.8rem; color: var(--text-muted);">
+        Customize the message, insert your referral link, or tweak the hook before broadcasting to Telegram.
+      </p>
+
+      <textarea id="modal-edit-text" class="edit-textarea" placeholder="Post text..."></textarea>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-secondary" onclick="savePostChanges()">💾 Save Changes</button>
+          <button class="btn btn-success" onclick="publishCurrentModalPost()">🚀 Publish Now</button>
+        </div>
       </div>
     </div>
   </div>
 
   <script>
     let queueItems = [];
+    let currentEditingRow = null;
 
     async function fetchStatus() {
       try {
@@ -566,6 +699,13 @@
         document.getElementById('val-pending').innerText = data.pending || 0;
         document.getElementById('val-approved').innerText = data.approved || 0;
         document.getElementById('val-total').innerText = data.total || 0;
+
+        if (data.autopilot) {
+          document.getElementById('autopilot-toggle').checked = !!data.autopilot.enabled;
+          document.getElementById('autopilot-status-text').innerText = data.autopilot.enabled 
+            ? `🟢 Auto-Pilot Active (Every ${data.autopilot.interval_hours}h)` 
+            : '⚪ Auto-Pilot Paused';
+        }
 
         queueItems = data.items || [];
         renderQueueTable();
@@ -589,22 +729,36 @@
 
     function renderQueueTable() {
       const tbody = document.getElementById('queue-tbody');
-      if (queueItems.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">Queue is clean. Click 'Fetch Feeds' to ingest new articles.</td></tr>`;
+      const filter = document.getElementById('pillar-filter').value;
+
+      const filtered = queueItems.filter(it => {
+        if (filter === 'ALL') return true;
+        return it.topic_pillar === filter;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">No items matching category filter.</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = queueItems.map((it, idx) => `
+      tbody.innerHTML = filtered.map((it, idx) => `
         <tr>
           <td>
             <a href="${it.source_url}" target="_blank" style="color: var(--text-main); text-decoration: none; font-weight: 500;">
-              ${escapeHtml(it.source_title.slice(0, 65))}${it.source_title.length > 65 ? '...' : ''}
+              ${escapeHtml(it.source_title.slice(0, 55))}${it.source_title.length > 55 ? '...' : ''}
             </a>
           </td>
           <td><span class="pillar-tag">${escapeHtml(it.topic_pillar)}</span></td>
           <td><span class="status-pill status-${it.status}">${it.status}</span></td>
-          <td>
-            ${it.telegram_post_text ? `<button class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="openPreview(${idx})">Preview Post</button>` : `<span style="color: var(--text-sub); font-size: 0.75rem;">Pending AI</span>`}
+          <td style="text-align: right;">
+            <div style="display: inline-flex; gap: 0.3rem;">
+              ${it.telegram_post_text ? `
+                <button class="btn btn-secondary btn-row" onclick="openEditModal(${it.row_index})">✏️ Edit & Ref</button>
+                <button class="btn btn-success btn-row" onclick="publishSingle(${it.row_index})">📢 Post</button>
+              ` : `
+                <span style="color: var(--text-sub); font-size: 0.72rem;">Pending AI</span>
+              `}
+            </div>
           </td>
         </tr>
       `).join('');
@@ -630,16 +784,99 @@
       }
     }
 
-    function openPreview(index) {
-      const item = queueItems[index];
-      if (item && item.telegram_post_text) {
-        document.getElementById('modal-post-text').innerText = item.telegram_post_text;
-        document.getElementById('preview-modal').classList.add('open');
-      }
+    async function toggleAutopilot() {
+      const enabled = document.getElementById('autopilot-toggle').checked;
+      const hours = document.getElementById('autopilot-freq').value;
+
+      await fetch('/api/toggle-autopilot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled, interval_hours: hours })
+      });
+      fetchStatus();
+    }
+
+    function openEditModal(rowIndex) {
+      const item = queueItems.find(it => it.row_index === rowIndex);
+      if (!item) return;
+
+      currentEditingRow = item;
+      document.getElementById('modal-row-tag').innerText = `Row #${rowIndex} [${item.topic_pillar}]`;
+      document.getElementById('modal-edit-text').value = item.telegram_post_text || '';
+      document.getElementById('edit-modal').classList.add('open');
+    }
+
+    async function savePostChanges() {
+      if (!currentEditingRow) return;
+      const newText = document.getElementById('modal-edit-text').value;
+
+      await fetch('/api/update-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          row_index: currentEditingRow.row_index,
+          text: newText,
+          status: 'APPROVED'
+        })
+      });
+
+      closeModal();
+      fetchStatus();
+    }
+
+    async function publishCurrentModalPost() {
+      if (!currentEditingRow) return;
+      const newText = document.getElementById('modal-edit-text').value;
+
+      // 1. Save first
+      await fetch('/api/update-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          row_index: currentEditingRow.row_index,
+          text: newText,
+          status: 'APPROVED'
+        })
+      });
+
+      // 2. Publish
+      await fetch('/api/publish-single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          row_index: currentEditingRow.row_index,
+          text: newText,
+          source_url: currentEditingRow.source_url,
+          topic_pillar: currentEditingRow.topic_pillar,
+          id: currentEditingRow.id
+        })
+      });
+
+      closeModal();
+      fetchStatus();
+    }
+
+    async function publishSingle(rowIndex) {
+      const item = queueItems.find(it => it.row_index === rowIndex);
+      if (!item) return;
+
+      await fetch('/api/publish-single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          row_index: item.row_index,
+          text: item.telegram_post_text,
+          source_url: item.source_url,
+          topic_pillar: item.topic_pillar,
+          id: item.id
+        })
+      });
+      fetchStatus();
     }
 
     function closeModal() {
-      document.getElementById('preview-modal').classList.remove('open');
+      document.getElementById('edit-modal').classList.remove('open');
+      currentEditingRow = null;
     }
 
     function escapeHtml(str) {
@@ -649,7 +886,7 @@
     // Polling Intervals
     fetchStatus();
     fetchLogs();
-    setInterval(fetchStatus, 5000);
+    setInterval(fetchStatus, 4000);
     setInterval(fetchLogs, 2500);
   </script>
 </body>
