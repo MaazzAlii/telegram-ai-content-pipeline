@@ -123,6 +123,8 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
             title = row[1] if len(row) > 1 else ""
             source_url = row[2] if len(row) > 2 else ""
             pillar = row[3] if len(row) > 3 else ""
+            post_text = row[6] if len(row) > 6 else ""
+
             if not post_text:
                 continue
 
