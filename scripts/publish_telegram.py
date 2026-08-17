@@ -128,9 +128,30 @@ def send_telegram_photo(bot_token: str, chat_id: str, photo_url: str, caption: s
     return send_telegram_message(bot_token, chat_id, caption)
 
 
+def get_published_archive_records(service, spreadsheet_id: str) -> tuple:
+    """Fetches all published URLs and message IDs from Published_Archive for Point B Dedup."""
+    published_urls = set()
+    published_ids = set()
+    try:
+        res = service.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id,
+            range="'Published_Archive'!A2:E"
+        ).execute()
+        rows = res.get("values", [])
+        for r in rows:
+            if len(r) > 0 and r[0]:  # post_id
+                published_ids.add(r[0].strip())
+            if len(r) > 4 and r[4]:  # source_url
+                published_urls.add(r[4].strip().lower().rstrip("/"))
+    except Exception as e:
+        print(f"[!] Note: Could not query Published_Archive: {e}")
+    return published_urls, published_ids
+
+
 def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: int = 1, prune_published: bool = False):
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
+    from process_ai_content import validate_ai_response, format_to_clean_telegram_post
 
     bot_token = load_env_var("TELEGRAM_BOT_TOKEN")
     channel_id = load_env_var("TELEGRAM_CHANNEL_ID")
@@ -146,6 +167,9 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
     )
     service = build("sheets", "v4", credentials=creds)
 
+    # Point B Dedup: Load Published_Archive records
+    archived_urls, archived_ids = get_published_archive_records(service, spreadsheet_id)
+
     print(f"\n[+] Scanning Content_Queue for APPROVED items ready to publish...")
     res = service.spreadsheets().values().get(
         spreadsheetId=spreadsheet_id,
@@ -159,80 +183,100 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
 
     published_count = 0
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    rows_to_delete_indices = []
 
     for idx, row in enumerate(rows, start=2):
         if published_count >= limit:
             break
 
-        # Schema: id(0), source_title(1), source_url(2), topic_pillar(3), raw_text(4), ai_summary(5), telegram_post_text(6), status(7)
+        # Schema: id(0), source_title(1), source_url(2), topic_pillar(3), raw_text(4), ai_summary(5), telegram_post_text(6), status(7), quality_score(8), created_at(9), scheduled_at(10), published_at(11)
         status = row[7] if len(row) > 7 else ""
-        if status == "APPROVED":
-            post_id = row[0] if len(row) > 0 else ""
-            title = row[1] if len(row) > 1 else ""
-            source_url = row[2] if len(row) > 2 else ""
-            pillar = row[3] if len(row) > 3 else ""
-            post_text = row[6] if len(row) > 6 else ""
+        published_at = row[11] if len(row) > 11 else ""
+        post_id = row[0] if len(row) > 0 else ""
+        title = row[1] if len(row) > 1 else ""
+        source_url = row[2] if len(row) > 2 else ""
+        pillar = row[3] if len(row) > 3 else "TECH_DEVELOPMENT"
+        post_text = row[6] if len(row) > 6 else ""
 
-            if not post_text:
-                continue
+        # FIX 2 (Point B Filter): Only process if status is strictly APPROVED and not already published
+        if status != "APPROVED" or published_at:
+            continue
 
-            # Safety check: Clean and reformat if post_text contains raw JSON
-            from process_ai_content import format_to_clean_telegram_post
+        # Check if already archived
+        clean_url_key = source_url.strip().lower().rstrip("/")
+        if (post_id and post_id in archived_ids) or (clean_url_key and clean_url_key in archived_urls):
+            print(f"  [Point B Dedup] Row {idx} (\"{title[:40]}\") already exists in Published_Archive. Updating status to PUBLISHED.")
+            service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=f"'Content_Queue'!H{idx}",
+                valueInputOption="USER_ENTERED",
+                body={"values": [["PUBLISHED"]]}
+            ).execute()
+            continue
+
+        if not post_text:
+            continue
+
+        # FIX 1 & 4: Ensure content is clean and validated
+        is_valid, err_reason, clean_broadcast_text, _ = validate_ai_response(post_text, title, source_url, pillar)
+        if not is_valid:
+            # Reformat fallback
             clean_broadcast_text = format_to_clean_telegram_post(post_text, title, source_url, pillar)
 
-            # Check if an image URL is attached
-            raw_content = row[4] if len(row) > 4 else ""
-            img_match = re.search(r'\[IMAGE:\s*([^\]]+)\]', raw_content)
-            image_url = img_match.group(1).strip() if img_match else ""
+        # Check if an image URL is attached
+        raw_content = row[4] if len(row) > 4 else ""
+        img_match = re.search(r'\[IMAGE:\s*([^\]]+)\]', raw_content)
+        image_url = img_match.group(1).strip() if img_match else ""
 
-            print(f"\n[+] Broadcasting post #{published_count + 1} to Telegram channel {channel_id}...")
-            print(f"    Title: \"{title[:60]}\"")
-            if image_url:
-                print(f"    Attached Image: {image_url}")
-                tg_res = send_telegram_photo(bot_token, channel_id, image_url, clean_broadcast_text)
-            else:
-                tg_res = send_telegram_message(bot_token, channel_id, clean_broadcast_text)
-            
-            if tg_res.get("ok"):
-                msg_id = tg_res.get("result", {}).get("message_id", "")
-                print(f"  [SUCCESS] Published to Telegram! Message ID: #{msg_id}")
+        print(f"\n[+] Broadcasting post #{published_count + 1} to Telegram channel {channel_id}...")
+        print(f"    Title: \"{title[:60]}\"")
+        if image_url:
+            print(f"    Attached Image: {image_url}")
+            tg_res = send_telegram_photo(bot_token, channel_id, image_url, clean_broadcast_text)
+        else:
+            tg_res = send_telegram_message(bot_token, channel_id, clean_broadcast_text)
+        
+        if tg_res.get("ok"):
+            msg_id = tg_res.get("result", {}).get("message_id", "")
+            print(f"  [SUCCESS] Published to Telegram! Message ID: #{msg_id}")
 
-                # 1. Update Content_Queue row to PUBLISHED
-                service.spreadsheets().values().update(
-                    spreadsheetId=spreadsheet_id,
-                    range=f"'Content_Queue'!H{idx}:L{idx}",
-                    valueInputOption="USER_ENTERED",
-                    body={
-                        "values": [["PUBLISHED", row[8] if len(row) > 8 else 0.9, row[9] if len(row) > 9 else "", now_iso, now_iso]]
-                    }
-                ).execute()
+            # 1. Update Content_Queue row to PUBLISHED
+            service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=f"'Content_Queue'!H{idx}:L{idx}",
+                valueInputOption="USER_ENTERED",
+                body={
+                    "values": [["PUBLISHED", row[8] if len(row) > 8 else 0.9, row[9] if len(row) > 9 else "", now_iso, now_iso]]
+                }
+            ).execute()
 
-                # 2. Append to Published_Archive
-                archive_row = [
-                    post_id,
-                    str(msg_id),
-                    pillar,
-                    post_text,
-                    source_url,
-                    now_iso,
-                    0,  # views_count
-                    0,  # forwards_count
-                    0   # reactions_count
-                ]
-                service.spreadsheets().values().append(
-                    spreadsheetId=spreadsheet_id,
-                    range="'Published_Archive'!A1",
-                    valueInputOption="USER_ENTERED",
-                    insertDataOption="INSERT_ROWS",
-                    body={"values": [archive_row]}
-                ).execute()
+            # 2. Append to Published_Archive
+            archive_row = [
+                post_id,
+                str(msg_id),
+                pillar,
+                clean_broadcast_text,
+                source_url,
+                now_iso,
+                0,  # views_count
+                0,  # forwards_count
+                0   # reactions_count
+            ]
+            service.spreadsheets().values().append(
+                spreadsheetId=spreadsheet_id,
+                range="'Published_Archive'!A1",
+                valueInputOption="USER_ENTERED",
+                insertDataOption="INSERT_ROWS",
+                body={"values": [archive_row]}
+            ).execute()
 
-                published_count += 1
-            else:
-                desc = tg_res.get("description", "Unknown error")
-                print(f"  [!] Telegram error: {desc}")
-                print("  💡 Tip: Make sure your VPN is active and the bot is an Administrator in @maazzalii!")
+            # Reserve in memory
+            archived_urls.add(clean_url_key)
+            archived_ids.add(post_id)
+            published_count += 1
+        else:
+            desc = tg_res.get("description", "Unknown error")
+            print(f"  [!] Telegram error: {desc}")
+            print("  💡 Tip: Make sure your VPN is active and the bot is an Administrator in @maazzalii!")
 
     print(f"\n[SUMMARY] Successfully published {published_count} post(s) to Telegram!\n")
 
