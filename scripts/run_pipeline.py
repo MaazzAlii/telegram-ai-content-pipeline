@@ -25,6 +25,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 # Add scripts directory to path
+BASE_DIR = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
@@ -33,7 +34,12 @@ from process_ai_content import process_queue
 from publish_telegram import publish_approved_content
 
 CREDENTIALS_FILE = "telegram-ai-pipeline-85177bbe5835.json"
-SPREADSHEET_ID = "1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE"
+SPREADSHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE")
+
+# Auto-create credentials JSON from environment variable if running on Render/Cloud
+if not (BASE_DIR / CREDENTIALS_FILE).exists() and os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"):
+    with open(BASE_DIR / CREDENTIALS_FILE, "w", encoding="utf-8") as f:
+        f.write(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
 
 
 def clear_content_queue(credentials_path: str, spreadsheet_id: str):

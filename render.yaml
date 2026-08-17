@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: telegram-ai-content-pipeline
+    env: python
+    region: frankfurt
+    plan: free
+    buildCommand: pip install -r scripts/requirements.txt
+    startCommand: python scripts/dashboard_server.py
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.8
+      - key: GOOGLE_SHEET_ID
+        value: 1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHANNEL_ID
+        value: "@maazzalii"
+      - key: GEMINI_API_KEYS
+        sync: false
+      - key: MISTRAL_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: AUTO_APPROVE
+        value: "true"

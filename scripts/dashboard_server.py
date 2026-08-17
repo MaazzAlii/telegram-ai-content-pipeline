@@ -25,7 +25,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DASHBOARD_DIR = BASE_DIR / "dashboard"
 SCRIPTS_DIR = BASE_DIR / "scripts"
 CREDENTIALS_FILE = "telegram-ai-pipeline-85177bbe5835.json"
-SPREADSHEET_ID = "1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE"
+SPREADSHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE")
+
+# Auto-create credentials JSON from environment variable if running on Render/Cloud
+if not (BASE_DIR / CREDENTIALS_FILE).exists() and os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"):
+    with open(BASE_DIR / CREDENTIALS_FILE, "w", encoding="utf-8") as f:
+        f.write(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
 
 LATEST_LOGS = ["Dashboard server initialized. Ready for commands."]
 
@@ -198,7 +203,8 @@ def run_server(port: int = 8080):
 
 if __name__ == "__main__":
     import argparse
+    default_port = int(os.environ.get("PORT", 8080))
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument("--port", type=int, default=default_port)
     args = parser.parse_args()
     run_server(args.port)
