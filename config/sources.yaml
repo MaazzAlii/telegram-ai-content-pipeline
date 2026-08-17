@@ -1,12 +1,12 @@
-# Curated Source Feeds for Telegram AI Content Pipeline
+# Curated High-Signal Source Feeds for Telegram AI Content Pipeline
 # Trust Levels:
-#   1 = Official / Primary Research / Direct Releases
-#   2 = Tier-1 Tech Journalism
-#   3 = Community & Aggregators
+#   1 = Official / Primary Research / Direct Lab Releases
+#   2 = Tier-1 Tech Journalism / Authoritative Industry Reporting
+#   3 = Specialized Community & Curated Aggregators
 
 sources:
-  ai_industry_startups:
-    - name: "OpenAI News"
+  ai_news:
+    - name: "OpenAI News & Announcements"
       url: "https://openai.com/news/rss.xml"
       trust_level: 1
     - name: "Google AI Blog"
@@ -18,16 +18,36 @@ sources:
     - name: "TechCrunch AI"
       url: "https://techcrunch.com/category/artificial-intelligence/feed/"
       trust_level: 2
+    - name: "VentureBeat AI"
+      url: "https://venturebeat.com/category/ai/feed/"
+      trust_level: 2
+
+  ai_industry_startups:
     - name: "Hugging Face Blog"
       url: "https://huggingface.co/blog/feed.xml"
       trust_level: 1
-
-  ai_tools:
-    - name: "TechCrunch Startups & Apps"
+    - name: "TechCrunch Enterprise & Startups"
       url: "https://techcrunch.com/category/startups/feed/"
       trust_level: 2
-    - name: "The Verge Tech"
-      url: "https://www.theverge.com/rss/index.xml"
+
+  ai_tools:
+    - name: "AI Tools & Product Releases (Google News RSS)"
+      url: "https://news.google.com/rss/search?q=Artificial+Intelligence+Tools+OR+LLM+Release&hl=en-US&gl=US&ceid=US:en"
+      trust_level: 2
+
+  agentic_ai:
+    - name: "Agentic AI & Autonomous Agents (Google News RSS)"
+      url: "https://news.google.com/rss/search?q=%22AI+Agents%22+OR+%22Agentic+AI%22+OR+%22Autonomous+Agents%22&hl=en-US&gl=US&ceid=US:en"
+      trust_level: 2
+
+  ai_automation:
+    - name: "AI Workflow & Automation (Google News RSS)"
+      url: "https://news.google.com/rss/search?q=%22AI+Automation%22+OR+%22LLM+Workflow%22+OR+%22Generative+AI+Workflow%22&hl=en-US&gl=US&ceid=US:en"
+      trust_level: 2
+
+  ai_career:
+    - name: "AI Engineering & Career (Google News RSS)"
+      url: "https://news.google.com/rss/search?q=%22AI+Engineer%22+OR+%22Prompt+Engineer%22+OR+%22AI+Jobs%22&hl=en-US&gl=US&ceid=US:en"
       trust_level: 2
 
   cybersecurity:
@@ -39,14 +59,19 @@ sources:
       trust_level: 2
 
   learning_resources:
-    - name: "GitHub Trending Today"
+    - name: "GitHub Trending Python"
       url: "https://github-rss.alexi.sh/trending/daily/python"
       trust_level: 2
+    - name: "ArXiv Artificial Intelligence"
+      url: "https://rss.arxiv.org/rss/cs.AI"
+      trust_level: 1
 
-  tech_development:
-    - name: "Hacker News Frontpage"
-      url: "https://news.ycombinator.com/rss"
-      trust_level: 3
-    - name: "Ars Technica"
-      url: "https://feeds.arstechnica.com/arstechnica/index"
+  technology:
+    - name: "Ars Technica Information Technology"
+      url: "https://feeds.arstechnica.com/arstechnica/technology-lab"
+      trust_level: 2
+
+  top10_prompts:
+    - name: "Top AI Prompts & Techniques (Google News RSS)"
+      url: "https://news.google.com/rss/search?q=%22Prompt+Engineering%22+OR+%22System+Prompt%22+OR+%22LLM+Prompts%22&hl=en-US&gl=US&ceid=US:en"
       trust_level: 2

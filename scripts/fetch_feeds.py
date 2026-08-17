@@ -21,14 +21,69 @@ if hasattr(sys.stdout, "reconfigure"):
 
 CONFIG_SOURCES = Path(__file__).resolve().parent.parent / "config" / "sources.yaml"
 
+import hashlib
+
 PILLAR_MAPPING = {
-    "ai_industry_startups": "AI_INDUSTRY_STARTUPS",
-    "ai_news": "AI_INDUSTRY_STARTUPS",
+    "ai_news": "AI_NEWS",
     "ai_tools": "AI_TOOLS",
+    "ai_industry_startups": "AI_INDUSTRY_STARTUPS",
+    "agentic_ai": "AGENTIC_AI",
+    "ai_automation": "AI_AUTOMATION",
+    "ai_career": "AI_CAREER",
     "cybersecurity": "CYBERSECURITY",
     "learning_resources": "LEARNING_RESOURCES",
+    "technology": "TECH_DEVELOPMENT",
     "tech_development": "TECH_DEVELOPMENT",
+    "top10_prompts": "TOP10_PROMPTS",
 }
+
+# Domain keyword lists for pre-filtering (Fix 3: Source Curation & Category Pre-filter)
+CATEGORY_KEYWORDS = {
+    "AI_NEWS": ["ai", "artificial intelligence", "llm", "gpt", "gemini", "claude", "deepmind", "openai", "anthropic", "meta", "model", "neural", "machine learning", "gpu", "nvidia", "transformer", "genai", "diffusion"],
+    "AI_TOOLS": ["tool", "app", "release", "software", "library", "framework", "platform", "extension", "plugin", "saas", "api", "ai", "model", "agent", "generator", "copilot"],
+    "AI_INDUSTRY_STARTUPS": ["startup", "funding", "venture", "raised", "acquisition", "valuation", "seed", "series", "enterprise", "market", "hugging face", "y combinator", "round", "investor"],
+    "AGENTIC_AI": ["agent", "agentic", "autonomous", "autogpt", "crewai", "langchain", "langgraph", "swarm", "reasoning", "tool use", "mcp", "multi-agent", "action"],
+    "AI_AUTOMATION": ["automation", "workflow", "n8n", "zapier", "pipeline", "orchestration", "agent", "automate", "productivity", "bot", "integration", "flow"],
+    "AI_CAREER": ["career", "job", "hire", "hiring", "salary", "engineer", "developer", "prompt engineer", "skills", "interview", "resume", "work", "roles", "talent"],
+    "CYBERSECURITY": ["vulnerability", "cve", "malware", "ransomware", "hack", "breach", "exploit", "security", "zero-day", "patch", "phishing", "ddos", "backdoor", "threat", "infosec", "cyber", "authentication"],
+    "LEARNING_RESOURCES": ["github", "tutorial", "guide", "paper", "arxiv", "course", "learn", "dataset", "benchmark", "python", "open source", "repo", "library", "cheatsheet"],
+    "TECH_DEVELOPMENT": ["code", "developer", "programming", "software", "api", "framework", "cloud", "database", "linux", "architecture", "web", "ai", "tech", "hardware", "system", "performance", "backend", "frontend", "devops"],
+    "TOP10_PROMPTS": ["prompt", "system prompt", "prompt engineering", "few-shot", "cot", "chain of thought", "jailbreak", "instruction", "llm", "prompts", "roleplay", "metaprompt"],
+}
+
+# Static off-topic blacklist (catches curiosities, wildfires, trebuchets, sports, etc.)
+OFF_TOPIC_BLACKLIST = [
+    "trebuchet", "wildfire", "celebrity", "hollywood", "horoscope", "astrology",
+    "recipe", "cooking", "nba", "nfl", "premier league", "baseball", "cricket score",
+    "olympics medal", "box office", "fashion week", "movie review", "diet plan"
+]
+
+
+def is_on_topic(title: str, text: str, pillar: str, trust_level: int = 2) -> bool:
+    """Pre-filter candidate articles (Fix 3) to guarantee off-topic noise is discarded before queueing."""
+    combined = f"{title} {text}".lower()
+    
+    # 1. Reject if blacklisted term is present
+    for bad_term in OFF_TOPIC_BLACKLIST:
+        if bad_term in combined:
+            return False
+            
+    # 2. Official Lab sources (Trust Level 1) are inherently on-topic
+    if trust_level == 1:
+        return True
+
+    # 3. Check for pillar keywords or general AI/tech signals
+    pillar_keywords = CATEGORY_KEYWORDS.get(pillar, CATEGORY_KEYWORDS["TECH_DEVELOPMENT"])
+    for kw in pillar_keywords:
+        if kw in combined:
+            return True
+            
+    # Also accept if general core AI terms match
+    for core_kw in ["ai", "llm", "software", "code", "developer", "api", "security", "model"]:
+        if re.search(r'\b' + re.escape(core_kw) + r'\b', combined):
+            return True
+
+    return False
 
 
 def clean_html(text: str) -> str:
@@ -97,7 +152,7 @@ def extract_image_url(item_node, desc_text: str = "") -> str:
     return ""
 
 
-def fetch_rss_entries(feed_url: str, pillar: str, max_items: int = 3) -> list:
+def fetch_rss_entries(feed_url: str, pillar: str, trust_level: int = 2, max_items: int = 3) -> list:
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) TelegramAIPipeline/1.0"}
     req = urllib.request.Request(feed_url, headers=headers)
     items = []
@@ -112,7 +167,10 @@ def fetch_rss_entries(feed_url: str, pillar: str, max_items: int = 3) -> list:
         else:
             raw_items = root.findall("{http://www.w3.org/2005/Atom}entry") or root.findall("entry")
 
-        for item in raw_items[:max_items]:
+        for item in raw_items:
+            if len(items) >= max_items:
+                break
+
             title = ""
             link = ""
             raw_desc = ""
@@ -128,24 +186,30 @@ def fetch_rss_entries(feed_url: str, pillar: str, max_items: int = 3) -> list:
             if desc_node is not None and desc_node.text:
                 raw_desc = desc_node.text
 
-            image_url = extract_image_url(item, raw_desc)
-            clean_desc = clean_html(raw_desc)
+            if not title or not link:
+                continue
 
+            # Category Pre-filter check (Fix 3)
+            clean_desc = clean_html(raw_desc)
+            if not is_on_topic(title, clean_desc, pillar, trust_level=trust_level):
+                # Discard off-topic article immediately
+                continue
+
+            image_url = extract_image_url(item, raw_desc)
             # Prefix raw_text with image metadata if found
             content_text = f"[IMAGE: {image_url}]\n{clean_desc[:1000]}" if image_url else (clean_desc[:1000] if clean_desc else title)
 
-            if title and link:
-                items.append({
-                    "id": str(uuid.uuid4())[:8],
-                    "source_title": title,
-                    "source_url": link,
-                    "topic_pillar": pillar,
-                    "raw_text": content_text,
-                    "image_url": image_url,
-                    "status": "PENDING",
-                    "quality_score": 0.85,
-                    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                })
+            items.append({
+                "id": str(uuid.uuid4())[:8],
+                "source_title": title,
+                "source_url": link,
+                "topic_pillar": pillar,
+                "raw_text": content_text,
+                "image_url": image_url,
+                "status": "PENDING",
+                "quality_score": 0.85 if trust_level <= 2 else 0.75,
+                "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            })
     except Exception as e:
         print(f"  [!] Failed fetching {feed_url}: {e}")
     
@@ -153,14 +217,18 @@ def fetch_rss_entries(feed_url: str, pillar: str, max_items: int = 3) -> list:
 
 
 def normalize_url(url: str) -> str:
-    """Normalize URL by stripping tracking parameters, hashes, and trailing slashes."""
+    """Normalize URL by stripping tracking parameters, hashes, and trailing slashes (Fix 2 Dedup)."""
     if not url:
         return ""
     try:
         parsed = urllib.parse.urlparse(url.strip())
-        # Remove common analytics parameters
         query_params = urllib.parse.parse_qsl(parsed.query)
-        cleaned_params = [(k, v) for k, v in query_params if not k.startswith("utm_") and k not in ("ref", "cmpid", "source")]
+        # Strip all analytics and tracking parameters
+        cleaned_params = [
+            (k, v) for k, v in query_params 
+            if not k.lower().startswith("utm_") 
+            and k.lower() not in ("ref", "cmpid", "source", "fbclid", "gclid", "mc_cid", "mc_eid")
+        ]
         new_query = urllib.parse.urlencode(cleaned_params)
         clean_url = urllib.parse.urlunparse((
             parsed.scheme.lower(),
@@ -198,7 +266,8 @@ def get_existing_records(service, spreadsheet_id: str) -> tuple:
             if len(r) > 0 and r[0]:
                 existing_titles.add(normalize_title(r[0]))
             if len(r) > 1 and r[1]:
-                existing_urls.add(normalize_url(r[1]))
+                norm_u = normalize_url(r[1])
+                existing_urls.add(norm_u)
                 existing_urls.add(r[1].strip())
     except Exception as e:
         print(f"[!] Note: Could not read Content_Queue: {e}")
@@ -212,7 +281,8 @@ def get_existing_records(service, spreadsheet_id: str) -> tuple:
         rows_arch = res_arch.get("values", [])
         for r in rows_arch:
             if len(r) > 1 and r[1]:
-                existing_urls.add(normalize_url(r[1]))
+                norm_u = normalize_url(r[1])
+                existing_urls.add(norm_u)
                 existing_urls.add(r[1].strip())
     except Exception as e:
         pass
@@ -309,14 +379,16 @@ def ingest_to_sheets(credentials_path: str, spreadsheet_id: str, max_per_feed: i
         feed_url = src.get("url")
         pillar = src.get("pillar", "TECH_DEVELOPMENT")
         name = src.get("name", feed_url)
-        print(f"  -> Fetching: {name} [{pillar}]")
-        entries = fetch_rss_entries(feed_url, pillar, max_items=max_per_feed)
+        trust_level = src.get("trust_level", 2)
+        print(f"  -> Fetching: {name} [{pillar}] (Trust Level {trust_level})")
+        entries = fetch_rss_entries(feed_url, pillar, trust_level=trust_level, max_items=max_per_feed)
         
         for entry in entries:
             norm_u = normalize_url(entry["source_url"])
             norm_t = normalize_title(entry["source_title"])
             if (norm_u not in existing_urls and entry["source_url"] not in existing_urls) and (norm_t not in existing_titles):
                 existing_urls.add(norm_u)
+                existing_urls.add(entry["source_url"])
                 existing_titles.add(norm_t)
                 all_new_items.append(entry)
 
