@@ -123,14 +123,16 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
             title = row[1] if len(row) > 1 else ""
             source_url = row[2] if len(row) > 2 else ""
             pillar = row[3] if len(row) > 3 else ""
-            post_text = row[6] if len(row) > 6 else ""
-
             if not post_text:
                 continue
 
+            # Safety check: Clean and reformat if post_text contains raw JSON
+            from process_ai_content import format_to_clean_telegram_post
+            clean_broadcast_text = format_to_clean_telegram_post(post_text, title, source_url, pillar)
+
             print(f"\n[+] Broadcasting post #{published_count + 1} to Telegram channel {channel_id}...")
             print(f"    Title: \"{title[:60]}\"")
-            tg_res = send_telegram_message(bot_token, channel_id, post_text)
+            tg_res = send_telegram_message(bot_token, channel_id, clean_broadcast_text)
             
             if tg_res.get("ok"):
                 msg_id = tg_res.get("result", {}).get("message_id", "")

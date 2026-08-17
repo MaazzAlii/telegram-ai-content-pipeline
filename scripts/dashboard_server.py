@@ -169,6 +169,7 @@ def update_single_post(row_index: int, new_text: str, new_status: str = "APPROVE
 
 def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, pillar: str, post_id: str) -> dict:
     from publish_telegram import send_telegram_message, load_env_var
+    from process_ai_content import format_to_clean_telegram_post
     import datetime
 
     bot_token = load_env_var("TELEGRAM_BOT_TOKEN")
@@ -177,8 +178,11 @@ def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, 
     if not bot_token or not channel_id:
         return {"ok": False, "error": "Bot credentials missing in .env"}
 
+    # Always sanitize raw text / JSON before sending
+    clean_text = format_to_clean_telegram_post(post_text, "", source_url, pillar)
+
     add_log(f"\n[SINGLE PUBLISH] Broadcasting row {row_index} to {channel_id}...")
-    res = send_telegram_message(bot_token, channel_id, post_text)
+    res = send_telegram_message(bot_token, channel_id, clean_text)
     
     if res.get("ok"):
         msg_id = res.get("result", {}).get("message_id", "")
