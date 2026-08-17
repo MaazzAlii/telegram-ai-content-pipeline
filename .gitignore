@@ -1,0 +1,31 @@
+# Secrets and Environment variables
+.env
+.env.*
+!.env.example
+
+# Service account keys and credential exports
+*service-account*.json
+*service_account*.json
+credentials.json
+credentials-*.json
+client_secret*.json
+n8n-credentials*.json
+*.pem
+*.key
+
+# n8n local data and persistent volume mounts
+.n8n/
+data/
+
+# Node & Python
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# OS specific
+.DS_Store
+Thumbs.db
