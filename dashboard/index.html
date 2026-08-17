@@ -1,58 +1,59 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Telegram AI Pipeline Control Center</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Telegram AI Pipeline - Mission Control & Topic Ingest</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-primary: #0b0f17;
-      --bg-surface: #121824;
-      --bg-card: rgba(22, 30, 46, 0.7);
+      --bg-base: #07090e;
+      --bg-surface: #0e141f;
+      --bg-card: rgba(18, 26, 41, 0.75);
       --border-color: rgba(255, 255, 255, 0.08);
-      --border-glow: rgba(56, 189, 248, 0.25);
+      --border-highlight: rgba(0, 242, 254, 0.35);
       
-      --accent-cyan: #06b6d4;
-      --accent-blue: #3b82f6;
+      --accent-cyan: #00f2fe;
+      --accent-blue: #4facfe;
+      --accent-purple: #8b5cf6;
       --accent-emerald: #10b981;
       --accent-amber: #f59e0b;
       --accent-rose: #f43f5e;
-      --accent-purple: #a855f7;
-
+      
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
-      --text-sub: #64748b;
+      --text-dim: #64748b;
     }
 
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
     }
 
     body {
-      background-color: var(--bg-primary);
+      background-color: var(--bg-base);
       color: var(--text-main);
-      font-family: 'Outfit', sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       background-image: 
-        radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.07) 0%, transparent 40%),
-        radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.07) 0%, transparent 40%);
+        radial-gradient(circle at 10% 10%, rgba(0, 242, 254, 0.04) 0%, transparent 40%),
+        radial-gradient(circle at 90% 90%, rgba(139, 92, 246, 0.04) 0%, transparent 40%);
     }
 
+    /* Top Navigation */
     header {
-      background: rgba(18, 24, 36, 0.85);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--border-color);
-      padding: 1rem 2rem;
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border-color);
+      background: rgba(7, 9, 14, 0.85);
+      backdrop-filter: blur(12px);
       position: sticky;
       top: 0;
       z-index: 50;
@@ -65,21 +66,24 @@
     }
 
     .logo-icon {
-      width: 38px;
-      height: 38px;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      width: 36px;
+      height: 36px;
       border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.25rem;
-      box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #030712;
+      box-shadow: 0 0 20px rgba(0, 242, 254, 0.3);
     }
 
     .brand h1 {
-      font-size: 1.25rem;
-      font-weight: 700;
-      background: linear-gradient(to right, #ffffff, #94a3b8);
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #fff, #94a3b8);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -87,52 +91,55 @@
     .header-links {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 0.75rem;
+    }
+
+    .badge-channel, .badge-sheet {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.4rem 0.85rem;
+      border-radius: 9999px;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s;
     }
 
     .badge-channel {
-      background: rgba(59, 130, 246, 0.15);
-      border: 1px solid rgba(59, 130, 246, 0.3);
-      color: #60a5fa;
-      padding: 0.35rem 0.8rem;
-      border-radius: 9999px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
+      background: rgba(0, 242, 254, 0.1);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(0, 242, 254, 0.25);
+    }
+    .badge-channel:hover {
+      background: rgba(0, 242, 254, 0.2);
     }
 
     .badge-sheet {
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #34d399;
-      padding: 0.35rem 0.8rem;
-      border-radius: 9999px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--accent-emerald);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+    .badge-sheet:hover {
+      background: rgba(16, 185, 129, 0.2);
     }
 
+    /* Main Container */
     main {
-      max-width: 1440px;
-      width: 100%;
-      margin: 0 auto;
+      flex: 1;
       padding: 1.5rem 2rem;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
       display: flex;
       flex-direction: column;
-      gap: 1.5rem;
-      flex: 1;
+      gap: 1.25rem;
     }
 
-    /* KPI Stats Grid */
+    /* Stats Grid */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 1rem;
     }
 
@@ -141,40 +148,79 @@
       backdrop-filter: blur(12px);
       border: 1px solid var(--border-color);
       border-radius: 14px;
-      padding: 1.25rem;
+      padding: 1rem 1.25rem;
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
+      position: relative;
+      overflow: hidden;
     }
 
     .stat-header {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      color: var(--text-muted);
+      justify-content: space-between;
       font-size: 0.8rem;
+      color: var(--text-muted);
       font-weight: 600;
     }
 
     .stat-value {
-      font-size: 2rem;
+      font-size: 1.75rem;
       font-weight: 800;
-      color: var(--text-main);
+      letter-spacing: -0.03em;
     }
 
     .stat-badge {
       font-size: 0.7rem;
-      padding: 0.2rem 0.5rem;
+      padding: 0.15rem 0.5rem;
       border-radius: 6px;
-      font-weight: 600;
+      font-weight: 700;
     }
-
     .badge-amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
     .badge-emerald { background: rgba(16, 185, 129, 0.15); color: #34d399; }
     .badge-blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-    .badge-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+    .badge-purple { background: rgba(139, 92, 246, 0.15); color: #c084fc; }
 
-    /* AutoPilot & Action Banner */
+    /* Topic Ingestion Toolbar */
+    .topic-search-card {
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.06), rgba(139, 92, 246, 0.06));
+      border: 1px solid var(--border-highlight);
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .topic-search-inputs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      align-items: center;
+      flex: 1;
+    }
+
+    .search-input {
+      background: #090d14;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text-main);
+      padding: 0.55rem 0.9rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      outline: none;
+      min-width: 260px;
+      flex: 1;
+      transition: all 0.2s;
+    }
+    .search-input:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+    }
+
+    /* Controls & Auto-Pilot Row */
     .control-row {
       display: grid;
       grid-template-columns: 2fr 1fr;
@@ -182,9 +228,7 @@
     }
 
     @media (max-width: 900px) {
-      .control-row {
-        grid-template-columns: 1fr;
-      }
+      .control-row { grid-template-columns: 1fr; }
     }
 
     .action-panel {
@@ -192,52 +236,50 @@
       backdrop-filter: blur(12px);
       border: 1px solid var(--border-color);
       border-radius: 14px;
-      padding: 1.25rem;
+      padding: 1.1rem 1.25rem;
       display: flex;
       flex-direction: column;
-      gap: 1rem;
+      justify-content: space-between;
+      gap: 0.75rem;
     }
 
     .action-group {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.6rem;
+      gap: 0.5rem;
     }
 
     .btn {
-      appearance: none;
-      border: none;
-      outline: none;
-      padding: 0.65rem 1.2rem;
+      padding: 0.5rem 1rem;
       border-radius: 8px;
-      font-family: inherit;
-      font-size: 0.85rem;
-      font-weight: 600;
+      font-size: 0.8rem;
+      font-weight: 700;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
+      border: none;
       transition: all 0.2s;
     }
 
     .btn-primary {
       background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
-      color: white;
+      color: #030712;
+      box-shadow: 0 4px 15px rgba(0, 242, 254, 0.25);
     }
-
     .btn-primary:hover {
-      box-shadow: 0 4px 15px rgba(6, 182, 212, 0.4);
       transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(0, 242, 254, 0.4);
     }
 
     .btn-secondary {
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.06);
       border: 1px solid var(--border-color);
       color: var(--text-main);
     }
-
     .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
     }
 
     .btn-success {
@@ -245,7 +287,6 @@
       border: 1px solid rgba(16, 185, 129, 0.4);
       color: #34d399;
     }
-
     .btn-success:hover {
       background: rgba(16, 185, 129, 0.35);
     }
@@ -255,7 +296,6 @@
       border: 1px solid rgba(244, 63, 94, 0.3);
       color: #fb7185;
     }
-
     .btn-danger:hover {
       background: rgba(244, 63, 94, 0.25);
     }
@@ -266,7 +306,7 @@
       backdrop-filter: blur(12px);
       border: 1px solid var(--border-color);
       border-radius: 14px;
-      padding: 1.25rem;
+      padding: 1.1rem 1.25rem;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -282,12 +322,10 @@
     .switch {
       position: relative;
       display: inline-block;
-      width: 48px;
-      height: 26px;
+      width: 46px;
+      height: 24px;
     }
-
     .switch input { opacity: 0; width: 0; height: 0; }
-
     .slider {
       position: absolute;
       cursor: pointer;
@@ -296,23 +334,20 @@
       transition: .3s;
       border-radius: 34px;
     }
-
     .slider:before {
       position: absolute;
       content: "";
-      height: 20px;
-      width: 20px;
+      height: 18px;
+      width: 18px;
       left: 3px;
       bottom: 3px;
       background-color: white;
       transition: .3s;
       border-radius: 50%;
     }
-
     input:checked + .slider {
       background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald));
     }
-
     input:checked + .slider:before {
       transform: translateX(22px);
     }
@@ -320,14 +355,12 @@
     /* Content Split Area */
     .content-section {
       display: grid;
-      grid-template-columns: 2.2fr 1fr;
+      grid-template-columns: 2.3fr 1fr;
       gap: 1.25rem;
     }
 
-    @media (max-width: 1024px) {
-      .content-section {
-        grid-template-columns: 1fr;
-      }
+    @media (max-width: 1100px) {
+      .content-section { grid-template-columns: 1fr; }
     }
 
     .panel {
@@ -339,10 +372,16 @@
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
-      max-height: 680px;
+      max-height: 720px;
     }
 
     .panel-header-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .search-filter-row {
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
@@ -350,15 +389,74 @@
       justify-content: space-between;
     }
 
+    .table-search-box {
+      background: #0b0f17;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text-main);
+      padding: 0.45rem 0.8rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      outline: none;
+      min-width: 220px;
+      flex: 1;
+    }
+    .table-search-box:focus {
+      border-color: var(--accent-cyan);
+    }
+
     .filter-select {
       background: #182232;
       border: 1px solid var(--border-color);
       color: var(--text-main);
-      padding: 0.4rem 0.8rem;
+      padding: 0.45rem 0.8rem;
       border-radius: 8px;
       font-size: 0.8rem;
       outline: none;
       cursor: pointer;
+    }
+
+    .filter-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .filter-pill {
+      font-size: 0.72rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 20px;
+      background: #141c2b;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-pill:hover, .filter-pill.active {
+      background: var(--accent-cyan);
+      color: #030712;
+      font-weight: 700;
+      border-color: var(--accent-cyan);
+    }
+
+    .status-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .status-filter-pill {
+      font-size: 0.72rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .status-filter-pill:hover, .status-filter-pill.active {
+      background: var(--accent-purple);
+      color: #ffffff;
+      font-weight: 700;
+      border-color: var(--accent-purple);
     }
 
     .table-container {
@@ -371,13 +469,13 @@
       width: 100%;
       border-collapse: collapse;
       text-align: left;
-      font-size: 0.825rem;
+      font-size: 0.8rem;
     }
 
     th {
-      background: rgba(18, 24, 36, 0.9);
+      background: rgba(14, 20, 31, 0.95);
       color: var(--text-muted);
-      padding: 0.65rem 0.8rem;
+      padding: 0.65rem 0.75rem;
       font-weight: 600;
       position: sticky;
       top: 0;
@@ -385,39 +483,63 @@
     }
 
     td {
-      padding: 0.75rem 0.8rem;
+      padding: 0.65rem 0.75rem;
       border-bottom: 1px solid rgba(255, 255, 255, 0.04);
       color: var(--text-main);
+      vertical-align: middle;
     }
 
     tr:hover td {
       background: rgba(255, 255, 255, 0.02);
     }
 
+    .img-thumb-wrap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: #182232;
+      overflow: hidden;
+      margin-right: 0.5rem;
+      flex-shrink: 0;
+    }
+    .img-thumb {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.2s;
+    }
+    .img-thumb:hover {
+      transform: scale(1.4);
+    }
+
     .pillar-tag {
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       font-weight: 600;
-      padding: 0.2rem 0.45rem;
+      padding: 0.2rem 0.4rem;
       border-radius: 6px;
       background: rgba(148, 163, 184, 0.1);
       color: var(--text-muted);
     }
 
     .status-pill {
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       font-weight: 700;
       padding: 0.2rem 0.5rem;
       border-radius: 9999px;
+      display: inline-block;
     }
-
     .status-PENDING { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
     .status-APPROVED { background: rgba(16, 185, 129, 0.2); color: #34d399; }
     .status-PUBLISHED { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    .status-REJECTED { background: rgba(244, 63, 94, 0.2); color: #f43f5e; }
 
     .btn-row {
-      padding: 0.25rem 0.5rem;
-      font-size: 0.72rem;
-      border-radius: 6px;
+      padding: 0.22rem 0.45rem;
+      font-size: 0.7rem;
+      border-radius: 5px;
     }
 
     /* Live Terminal Console */
@@ -432,21 +554,34 @@
       overflow-y: auto;
       flex: 1;
       min-height: 250px;
-      max-height: 580px;
+      max-height: 600px;
       line-height: 1.45;
     }
-
     .terminal-line {
       white-space: pre-wrap;
       word-break: break-word;
       margin-bottom: 0.2rem;
     }
 
+    /* Batch Selection Toolbar */
+    .batch-bar {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+    }
+    .batch-bar.active {
+      display: flex;
+    }
+
     /* Modal for Post Editing & Preview */
     .modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.75);
+      background: rgba(0, 0, 0, 0.8);
       backdrop-filter: blur(8px);
       display: flex;
       align-items: center;
@@ -456,7 +591,6 @@
       pointer-events: none;
       transition: opacity 0.2s;
     }
-
     .modal-backdrop.open {
       opacity: 1;
       pointer-events: auto;
@@ -466,13 +600,15 @@
       background: var(--bg-surface);
       border: 1px solid var(--border-color);
       border-radius: 16px;
-      max-width: 720px;
+      max-width: 760px;
       width: 94%;
+      max-height: 90vh;
+      overflow-y: auto;
       padding: 1.5rem;
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
     }
 
     .referral-helper-bar {
@@ -497,21 +633,37 @@
       font-size: 0.8rem;
     }
 
+    .modal-img-preview-box {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px dashed var(--border-color);
+      padding: 0.6rem;
+      border-radius: 8px;
+    }
+    .modal-img-preview {
+      width: 60px;
+      height: 60px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #182232;
+    }
+
     .edit-textarea {
       width: 100%;
-      height: 280px;
+      height: 240px;
       background: #0b0f17;
       border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 10px;
       color: #f8fafc;
-      padding: 1rem;
-      font-family: 'JetBrains Mono', monospace, sans-serif;
+      padding: 0.9rem;
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.85rem;
       line-height: 1.5;
       resize: vertical;
       outline: none;
     }
-
     .edit-textarea:focus {
       border-color: var(--accent-cyan);
     }
@@ -520,45 +672,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-    }
-
-    /* Batch Selection Toolbar */
-    .batch-bar {
-      display: none;
-      align-items: center;
-      justify-content: space-between;
-      background: rgba(56, 189, 248, 0.1);
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      padding: 0.5rem 1rem;
-      border-radius: 8px;
-      margin-bottom: 0.5rem;
-    }
-    .batch-bar.active {
-      display: flex;
-    }
-
-    /* Quick Filter Pills */
-    .filter-pills {
-      display: flex;
+      gap: 0.5rem;
       flex-wrap: wrap;
-      gap: 0.4rem;
-      margin-top: 0.2rem;
-    }
-    .filter-pill {
-      font-size: 0.75rem;
-      padding: 0.3rem 0.7rem;
-      border-radius: 20px;
-      background: #182232;
-      border: 1px solid var(--border-color);
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .filter-pill:hover, .filter-pill.active {
-      background: var(--accent-cyan);
-      color: #030712;
-      font-weight: 700;
-      border-color: var(--accent-cyan);
     }
 
     /* Toast Notification */
@@ -614,26 +729,26 @@
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-header">
-          <span>Pending Ingested</span>
-          <span class="stat-badge badge-amber">Awaiting AI</span>
+          <span>Pending Articles</span>
+          <span class="stat-badge badge-amber">Awaiting AI/Review</span>
         </div>
         <div class="stat-value" id="val-pending">0</div>
       </div>
 
       <div class="stat-card">
         <div class="stat-header">
-          <span>Auto-Approved</span>
-          <span class="stat-badge badge-emerald">Ready to Post</span>
+          <span>Approved Posts</span>
+          <span class="stat-badge badge-emerald">Ready to Broadcast</span>
         </div>
         <div class="stat-value" id="val-approved">0</div>
       </div>
 
       <div class="stat-card">
         <div class="stat-header">
-          <span>Total In Queue</span>
-          <span class="stat-badge badge-blue">Sheet Rows</span>
+          <span>Published Live</span>
+          <span class="stat-badge badge-blue">In Telegram Channel</span>
         </div>
-        <div class="stat-value" id="val-total">0</div>
+        <div class="stat-value" id="val-published">0</div>
       </div>
 
       <div class="stat-card">
@@ -641,9 +756,40 @@
           <span>AI Multi-Failover</span>
           <span class="stat-badge badge-purple">Active</span>
         </div>
-        <div class="stat-value" style="font-size: 1.1rem; font-weight: 700; margin-top: 0.4rem;">
+        <div class="stat-value" style="font-size: 1.05rem; font-weight: 700; margin-top: 0.3rem;">
           Gemini (x5) ➔ Mistral ➔ Groq
         </div>
+      </div>
+    </div>
+
+    <!-- On-Demand Topic & Keyword Search Ingest -->
+    <div class="topic-search-card">
+      <div class="topic-search-inputs">
+        <span style="font-size: 0.85rem; font-weight: 700; color: var(--accent-cyan); display: flex; align-items: center; gap: 0.3rem;">
+          🎯 Live Topic News Ingest:
+        </span>
+        <input 
+          type="text" 
+          id="topic-keyword-input" 
+          class="search-input" 
+          placeholder="Enter search term or keyword (e.g. Claude 3.7, DeepSeek, Cybersecurity, Cursor AI)..." 
+          onkeydown="if(event.key === 'Enter') fetchTopicNews()"
+        />
+        <select id="topic-pillar-select" class="filter-select">
+          <option value="AI_INDUSTRY_STARTUPS">🚀 AI News & Startups</option>
+          <option value="AI_TOOLS">🛠️ AI Tools (Referrals)</option>
+          <option value="LEARNING_RESOURCES">💡 Prompts & Tutorials</option>
+          <option value="CYBERSECURITY">🛡️ Cyber Security</option>
+          <option value="TECH_DEVELOPMENT">⚡ Tech Development</option>
+        </select>
+        <select id="topic-count-select" class="filter-select" style="width: 85px;">
+          <option value="3">3 posts</option>
+          <option value="5" selected>5 posts</option>
+          <option value="8">8 posts</option>
+        </select>
+        <button class="btn btn-primary" id="btn-fetch-topic" onclick="fetchTopicNews()">
+          🔍 Ingest Topic News
+        </button>
       </div>
     </div>
 
@@ -657,7 +803,7 @@
             🚀 Run Full Cycle
           </button>
           <button class="btn btn-secondary" onclick="triggerAction('ingest')">
-            📥 Ingest Feeds
+            📥 Ingest Standard Feeds
           </button>
           <button class="btn btn-secondary" onclick="triggerAction('process-ai')">
             🧠 AI Auto-Format
@@ -701,24 +847,40 @@
       <!-- Live Content Queue Table -->
       <div class="panel">
         <div class="panel-header-controls">
-          <div>
-            <span style="font-weight: 700; font-size: 0.95rem;">Queue & Post Inspector</span>
-            <div class="filter-pills" id="filter-pills-bar">
-              <button class="filter-pill active" onclick="setCategoryFilter('ALL')">🌟 All</button>
-              <button class="filter-pill" onclick="setCategoryFilter('AI_TOOLS')">🛠️ AI Tools (Referrals)</button>
-              <button class="filter-pill" onclick="setCategoryFilter('LEARNING_RESOURCES')">💡 Prompts & Guides</button>
-              <button class="filter-pill" onclick="setCategoryFilter('AI_INDUSTRY_STARTUPS')">🚀 AI News & Startups</button>
-              <button class="filter-pill" onclick="setCategoryFilter('CYBERSECURITY')">🛡️ Cyber Security</button>
-              <button class="filter-pill" onclick="setCategoryFilter('TECH_DEVELOPMENT')">⚡ Tech Dev</button>
+          <div class="search-filter-row">
+            <input 
+              type="text" 
+              id="queue-search-filter" 
+              class="table-search-box" 
+              placeholder="🔍 Search Queue (Title, topic, ID, content...)" 
+              oninput="renderQueueTable()"
+            />
+            <div class="status-pills" id="status-pills-bar">
+              <button class="status-filter-pill active" onclick="setStatusFilter('ALL')">All Status</button>
+              <button class="status-filter-pill" onclick="setStatusFilter('PENDING')">⏳ Pending</button>
+              <button class="status-filter-pill" onclick="setStatusFilter('APPROVED')">✅ Approved</button>
+              <button class="status-filter-pill" onclick="setStatusFilter('PUBLISHED')">🚀 Published</button>
+              <button class="status-filter-pill" onclick="setStatusFilter('REJECTED')">❌ Rejected</button>
             </div>
+          </div>
+
+          <div class="filter-pills" id="filter-pills-bar">
+            <button class="filter-pill active" onclick="setCategoryFilter('ALL')">🌟 All Categories</button>
+            <button class="filter-pill" onclick="setCategoryFilter('AI_TOOLS')">🛠️ AI Tools</button>
+            <button class="filter-pill" onclick="setCategoryFilter('LEARNING_RESOURCES')">💡 Prompts & Guides</button>
+            <button class="filter-pill" onclick="setCategoryFilter('AI_INDUSTRY_STARTUPS')">🚀 AI Startups</button>
+            <button class="filter-pill" onclick="setCategoryFilter('CYBERSECURITY')">🛡️ Cyber Security</button>
+            <button class="filter-pill" onclick="setCategoryFilter('TECH_DEVELOPMENT')">⚡ Tech Dev</button>
           </div>
         </div>
 
         <!-- Multi-Select Batch Action Bar -->
         <div class="batch-bar" id="batch-action-bar">
           <span id="batch-count-text" style="font-size: 0.8rem; font-weight: 600; color: var(--accent-cyan);">0 items selected</span>
-          <div style="display: flex; gap: 0.4rem;">
-            <button class="btn btn-success btn-row" onclick="publishBatchSelected()">📢 Publish Selected</button>
+          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+            <button class="btn btn-success btn-row" onclick="batchSetStatus('APPROVED')">✅ Approve Selected</button>
+            <button class="btn btn-danger btn-row" onclick="batchSetStatus('REJECTED')">❌ Reject Selected</button>
+            <button class="btn btn-primary btn-row" onclick="publishBatchSelected()">📢 Publish Selected</button>
             <button class="btn btn-secondary btn-row" onclick="clearAllSelections()">Cancel</button>
           </div>
         </div>
@@ -727,16 +889,16 @@
           <table>
             <thead>
               <tr>
-                <th style="width: 32px;"><input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)"></th>
-                <th>Article Title</th>
+                <th style="width: 28px;"><input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)"></th>
+                <th>Article / Post Content</th>
                 <th>Category</th>
                 <th>Status</th>
-                <th style="text-align: right;">Actions</th>
+                <th style="text-align: right;">Action Controls</th>
               </tr>
             </thead>
             <tbody id="queue-tbody">
               <tr>
-                <td colspan="5" style="text-align: center; color: var(--text-muted);">Loading sheet items...</td>
+                <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading sheet items...</td>
               </tr>
             </tbody>
           </table>
@@ -745,7 +907,7 @@
 
       <!-- Realtime Execution Terminal -->
       <div class="panel">
-        <div class="panel-header-controls">
+        <div class="panel-header-controls" style="flex-direction: row; justify-content: space-between; align-items: center;">
           <span style="font-weight: 700; font-size: 0.95rem;">Live Console Output</span>
           <span id="log-status" style="font-size: 0.75rem; color: var(--accent-emerald);">● Online</span>
         </div>
@@ -761,8 +923,20 @@
   <div class="modal-backdrop" id="edit-modal" onclick="closeModal(event)">
     <div class="modal-card" onclick="event.stopPropagation()">
       <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2 style="font-size: 1.1rem; font-weight: 700;">✏️ Edit Post & Add Referral Links</h2>
+        <h2 style="font-size: 1.1rem; font-weight: 700;">✏️ Edit Post & Media</h2>
         <span id="modal-row-tag" class="pillar-tag">Row #</span>
+      </div>
+
+      <!-- Image URL & Preview Bar -->
+      <div class="modal-img-preview-box">
+        <img id="modal-img-preview" class="modal-img-preview" src="" alt="Thumbnail" style="display: none;" />
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 0.3rem;">
+          <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">📸 Post Image / Photo URL (Optional):</span>
+          <div style="display: flex; gap: 0.4rem;">
+            <input type="url" id="modal-img-input" class="ref-input" placeholder="https://example.com/image.jpg..." oninput="updateModalImagePreview()" />
+            <button class="btn btn-secondary btn-row" onclick="updateModalImagePreview()">👁️ Preview</button>
+          </div>
+        </div>
       </div>
 
       <!-- Referral Link Insertion Bar -->
@@ -776,10 +950,14 @@
       <textarea id="modal-edit-text" class="edit-textarea" placeholder="Post text will load here..."></textarea>
 
       <div class="modal-actions">
-        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <div style="display: flex; gap: 0.4rem;">
+          <button class="btn btn-danger btn-row" onclick="setPostStatusFromModal('REJECTED')">❌ Reject Post</button>
+          <button class="btn btn-success btn-row" onclick="setPostStatusFromModal('APPROVED')">✅ Mark Approved</button>
+        </div>
         <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
           <button class="btn btn-secondary" onclick="savePostChanges()">💾 Save Changes</button>
-          <button class="btn btn-success" id="modal-publish-btn" onclick="publishCurrentModalPost()">🚀 Publish Now</button>
+          <button class="btn btn-primary" id="modal-publish-btn" onclick="publishCurrentModalPost()">🚀 Publish Now</button>
         </div>
       </div>
     </div>
@@ -795,7 +973,8 @@
     let queueItems = [];
     let currentEditingRow = null;
     let selectedRowIndices = new Set();
-    let currentFilter = 'ALL';
+    let currentCategoryFilter = 'ALL';
+    let currentStatusFilter = 'ALL';
 
     function showToast(msg, isSuccess = true) {
       const toast = document.getElementById('toast-notify');
@@ -814,7 +993,7 @@
 
         document.getElementById('val-pending').innerText = data.pending || 0;
         document.getElementById('val-approved').innerText = data.approved || 0;
-        document.getElementById('val-total').innerText = data.total || 0;
+        document.getElementById('val-published').innerText = data.published || 0;
 
         if (data.autopilot) {
           document.getElementById('autopilot-toggle').checked = !!data.autopilot.enabled;
@@ -844,43 +1023,181 @@
     }
 
     function setCategoryFilter(pillar) {
-      currentFilter = pillar;
-      document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      currentCategoryFilter = pillar;
+      document.querySelectorAll('#filter-pills-bar .filter-pill').forEach(p => p.classList.remove('active'));
       event.target.classList.add('active');
       renderQueueTable();
     }
 
+    function setStatusFilter(status) {
+      currentStatusFilter = status;
+      document.querySelectorAll('#status-pills-bar .status-filter-pill').forEach(p => p.classList.remove('active'));
+      event.target.classList.add('active');
+      renderQueueTable();
+    }
+
+    async function fetchTopicNews() {
+      const input = document.getElementById('topic-keyword-input');
+      const keyword = input.value.trim();
+      if (!keyword) {
+        alert("Please enter a topic keyword or search term (e.g. 'Claude 3.7', 'DeepSeek', 'Cybersecurity').");
+        return;
+      }
+
+      const pillar = document.getElementById('topic-pillar-select').value;
+      const count = document.getElementById('topic-count-select').value;
+      const btn = document.getElementById('btn-fetch-topic');
+
+      btn.disabled = true;
+      btn.innerText = "⏳ Ingesting...";
+      showToast(`Searching live news for '${keyword}'...`);
+
+      try {
+        const res = await fetch('/api/fetch-topic', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keyword, pillar, max_items: parseInt(count) })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast(`Added ${data.added || 0} news articles for '${keyword}' to queue!`);
+          input.value = '';
+          fetchStatus();
+        } else {
+          alert("Error fetching topic news: " + (data.error || "Unknown error"));
+        }
+      } catch (e) {
+        alert("Network error: " + e);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "🔍 Ingest Topic News";
+      }
+    }
+
+    async function setRowStatus(rowIndex, newStatus) {
+      showToast(`Setting row #${rowIndex} to ${newStatus}...`);
+      try {
+        const res = await fetch('/api/set-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ row_index: rowIndex, status: newStatus })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast(`Row #${rowIndex} marked as ${newStatus}!`);
+          fetchStatus();
+        }
+      } catch (e) {
+        alert("Failed to update status: " + e);
+      }
+    }
+
+    async function batchSetStatus(newStatus) {
+      const indices = Array.from(selectedRowIndices);
+      if (indices.length === 0) return;
+
+      showToast(`Updating ${indices.length} post(s) to ${newStatus}...`);
+      for (const rIdx of indices) {
+        await fetch('/api/set-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ row_index: rIdx, status: newStatus })
+        });
+      }
+      clearAllSelections();
+      showToast(`Batch status update completed!`);
+      fetchStatus();
+    }
+
     function renderQueueTable() {
       const tbody = document.getElementById('queue-tbody');
+      const searchQuery = (document.getElementById('queue-search-filter').value || '').toLowerCase().trim();
 
       const filtered = queueItems.filter(it => {
-        if (currentFilter === 'ALL') return true;
-        return it.topic_pillar === currentFilter;
+        // Category filter
+        if (currentCategoryFilter !== 'ALL' && it.topic_pillar !== currentCategoryFilter) {
+          return false;
+        }
+        // Status filter
+        if (currentStatusFilter !== 'ALL' && it.status !== currentStatusFilter) {
+          return false;
+        }
+        // Search filter
+        if (searchQuery) {
+          const matchTitle = (it.source_title || '').toLowerCase().includes(searchQuery);
+          const matchText = (it.telegram_post_text || '').toLowerCase().includes(searchQuery);
+          const matchUrl = (it.source_url || '').toLowerCase().includes(searchQuery);
+          const matchPillar = (it.topic_pillar || '').toLowerCase().includes(searchQuery);
+          const matchId = (it.id || '').toLowerCase().includes(searchQuery);
+          if (!matchTitle && !matchText && !matchUrl && !matchPillar && !matchId) {
+            return false;
+          }
+        }
+        return true;
       });
 
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">No items matching category filter.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">No items matching the selected filters.</td></tr>`;
         return;
       }
 
       tbody.innerHTML = filtered.map(it => {
         const isChecked = selectedRowIndices.has(it.row_index);
+        const hasImg = it.image_url && it.image_url.startsWith('http');
+        const imgHtml = hasImg 
+          ? `<div class="img-thumb-wrap" title="Attached Image"><img src="${escapeHtml(it.image_url)}" class="img-thumb" onerror="this.style.display='none'" /></div>`
+          : `<div class="img-thumb-wrap" style="color: var(--text-dim); font-size: 0.8rem;">📄</div>`;
+
+        // Render Action buttons based on status
+        let actionButtons = '';
+        if (it.status === 'PENDING') {
+          actionButtons = `
+            <button class="btn btn-success btn-row" onclick="setRowStatus(${it.row_index}, 'APPROVED')" title="Approve this post">✅ Approve</button>
+            <button class="btn btn-danger btn-row" onclick="setRowStatus(${it.row_index}, 'REJECTED')" title="Reject this post">❌ Reject</button>
+            <button class="btn btn-secondary btn-row" onclick="openEditModal(${it.row_index})">✏️ Edit</button>
+            <button class="btn btn-primary btn-row" id="btn-post-${it.row_index}" onclick="publishSingle(${it.row_index})">📢 Post</button>
+          `;
+        } else if (it.status === 'APPROVED') {
+          actionButtons = `
+            <button class="btn btn-primary btn-row" id="btn-post-${it.row_index}" onclick="publishSingle(${it.row_index})">🚀 Post Now</button>
+            <button class="btn btn-secondary btn-row" onclick="openEditModal(${it.row_index})">✏️ Edit</button>
+            <button class="btn btn-danger btn-row" onclick="setRowStatus(${it.row_index}, 'REJECTED')">❌ Reject</button>
+          `;
+        } else if (it.status === 'REJECTED') {
+          actionButtons = `
+            <button class="btn btn-secondary btn-row" onclick="setRowStatus(${it.row_index}, 'APPROVED')">🔄 Restore / Approve</button>
+            <button class="btn btn-secondary btn-row" onclick="openEditModal(${it.row_index})">✏️ Edit</button>
+          `;
+        } else { // PUBLISHED
+          actionButtons = `
+            <button class="btn btn-secondary btn-row" onclick="openEditModal(${it.row_index})">✏️ View / Edit</button>
+            <button class="btn btn-secondary btn-row" id="btn-post-${it.row_index}" onclick="publishSingle(${it.row_index})">🔄 Re-post</button>
+          `;
+        }
+
         return `
           <tr>
             <td>
               <input type="checkbox" class="row-checkbox" ${isChecked ? 'checked' : ''} onchange="toggleRowSelection(${it.row_index}, this.checked)">
             </td>
             <td>
-              <a href="${it.source_url}" target="_blank" style="color: var(--text-main); text-decoration: none; font-weight: 500;">
-                ${escapeHtml(it.source_title ? it.source_title.slice(0, 55) : 'Untitled')}${it.source_title && it.source_title.length > 55 ? '...' : ''}
-              </a>
+              <div style="display: flex; align-items: center;">
+                ${imgHtml}
+                <div>
+                  <a href="${it.source_url || '#'}" target="_blank" style="color: var(--text-main); text-decoration: none; font-weight: 600; font-size: 0.82rem;">
+                    ${escapeHtml(it.source_title ? it.source_title.slice(0, 60) : 'Untitled')}${it.source_title && it.source_title.length > 60 ? '...' : ''}
+                  </a>
+                  <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.15rem;">
+                    ${escapeHtml(it.telegram_post_text ? it.telegram_post_text.slice(0, 75).replace(/[\n\r]+/g, ' ') : 'AI formatting pending...')}...
+                  </div>
+                </div>
+              </div>
             </td>
             <td><span class="pillar-tag">${escapeHtml(it.topic_pillar || 'GENERAL')}</span></td>
             <td><span class="status-pill status-${it.status}">${it.status}</span></td>
             <td style="text-align: right;">
-              <div style="display: inline-flex; gap: 0.3rem;">
-                <button class="btn btn-secondary btn-row" onclick="openEditModal(${it.row_index})">✏️ Edit & Ref</button>
-                <button class="btn btn-success btn-row" id="btn-post-${it.row_index}" onclick="publishSingle(${it.row_index})">📢 Post</button>
+              <div style="display: inline-flex; gap: 0.3rem; flex-wrap: wrap; justify-content: flex-end;">
+                ${actionButtons}
               </div>
             </td>
           </tr>
@@ -900,7 +1217,18 @@
     }
 
     function toggleSelectAll(isChecked) {
-      const filtered = queueItems.filter(it => currentFilter === 'ALL' || it.topic_pillar === currentFilter);
+      const searchQuery = (document.getElementById('queue-search-filter').value || '').toLowerCase().trim();
+      const filtered = queueItems.filter(it => {
+        if (currentCategoryFilter !== 'ALL' && it.topic_pillar !== currentCategoryFilter) return false;
+        if (currentStatusFilter !== 'ALL' && it.status !== currentStatusFilter) return false;
+        if (searchQuery) {
+          const matchTitle = (it.source_title || '').toLowerCase().includes(searchQuery);
+          const matchText = (it.telegram_post_text || '').toLowerCase().includes(searchQuery);
+          if (!matchTitle && !matchText) return false;
+        }
+        return true;
+      });
+
       if (isChecked) {
         filtered.forEach(it => selectedRowIndices.add(it.row_index));
       } else {
@@ -932,9 +1260,9 @@
       const indices = Array.from(selectedRowIndices);
       if (indices.length === 0) return;
 
-      if (!confirm(`Are you sure you want to publish all ${indices.length} selected post(s) to Telegram?`)) return;
+      if (!confirm(`Are you sure you want to broadcast all ${indices.length} selected post(s) to Telegram?`)) return;
 
-      showToast(`Publishing ${indices.length} posts to Telegram...`);
+      showToast(`Broadcasting ${indices.length} posts to Telegram...`);
       for (const rIdx of indices) {
         const item = queueItems.find(it => it.row_index === rIdx);
         if (item) {
@@ -946,7 +1274,8 @@
               text: item.telegram_post_text || item.source_title,
               source_url: item.source_url,
               topic_pillar: item.topic_pillar,
-              id: item.id
+              id: item.id,
+              image_url: item.image_url || ''
             })
           });
         }
@@ -998,7 +1327,7 @@
       currentEditingRow = item;
       document.getElementById('modal-row-tag').innerText = `Row #${rowIndex} [${item.topic_pillar || 'TECH'}]`;
 
-      // If telegram_post_text is empty, create a clean default template so the box is NEVER empty!
+      // Load post text
       let initialText = item.telegram_post_text;
       if (!initialText || initialText.trim() === '') {
         const cleanTitle = (item.source_title || 'Exciting AI Update').replace(/[^\w\s-.,!?]/gi, '');
@@ -1012,7 +1341,24 @@
 
       document.getElementById('modal-edit-text').value = initialText;
       document.getElementById('ref-link-input').value = '';
+      
+      // Load Image
+      const imgInput = document.getElementById('modal-img-input');
+      imgInput.value = item.image_url || '';
+      updateModalImagePreview();
+
       document.getElementById('edit-modal').classList.add('open');
+    }
+
+    function updateModalImagePreview() {
+      const url = document.getElementById('modal-img-input').value.trim();
+      const imgElem = document.getElementById('modal-img-preview');
+      if (url && url.startsWith('http')) {
+        imgElem.src = url;
+        imgElem.style.display = 'block';
+      } else {
+        imgElem.style.display = 'none';
+      }
     }
 
     function insertReferralLink() {
@@ -1038,9 +1384,16 @@
       showToast("Prompt guide box added!");
     }
 
+    async function setPostStatusFromModal(newStatus) {
+      if (!currentEditingRow) return;
+      await setRowStatus(currentEditingRow.row_index, newStatus);
+      closeModal();
+    }
+
     async function savePostChanges() {
       if (!currentEditingRow) return;
       const newText = document.getElementById('modal-edit-text').value;
+      const newImg = document.getElementById('modal-img-input').value.trim();
 
       showToast("Saving changes to Google Sheet...");
       await fetch('/api/update-post', {
@@ -1049,7 +1402,8 @@
         body: JSON.stringify({
           row_index: currentEditingRow.row_index,
           text: newText,
-          status: 'APPROVED'
+          status: 'APPROVED',
+          image_url: newImg
         })
       });
 
@@ -1061,6 +1415,7 @@
     async function publishCurrentModalPost() {
       if (!currentEditingRow) return;
       const newText = document.getElementById('modal-edit-text').value;
+      const newImg = document.getElementById('modal-img-input').value.trim();
       const btn = document.getElementById('modal-publish-btn');
       btn.disabled = true;
       btn.innerText = 'Publishing...';
@@ -1072,7 +1427,8 @@
         body: JSON.stringify({
           row_index: currentEditingRow.row_index,
           text: newText,
-          status: 'APPROVED'
+          status: 'APPROVED',
+          image_url: newImg
         })
       });
 
@@ -1085,7 +1441,8 @@
           text: newText,
           source_url: currentEditingRow.source_url,
           topic_pillar: currentEditingRow.topic_pillar,
-          id: currentEditingRow.id
+          id: currentEditingRow.id,
+          image_url: newImg
         })
       });
       const data = await res.json();
@@ -1123,7 +1480,8 @@
           text: item.telegram_post_text || item.source_title,
           source_url: item.source_url,
           topic_pillar: item.topic_pillar,
-          id: item.id
+          id: item.id,
+          image_url: item.image_url || ''
         })
       });
       const data = await res.json();

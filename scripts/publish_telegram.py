@@ -79,6 +79,55 @@ def send_telegram_message(bot_token: str, chat_id: str, text: str) -> dict:
     return {"ok": False, "description": "Unknown error sending message"}
 
 
+def send_telegram_photo(bot_token: str, chat_id: str, photo_url: str, caption: str) -> dict:
+    """Send photo with caption to Telegram channel, with automatic fallback to text message."""
+    if not photo_url or not photo_url.startswith("http"):
+        return send_telegram_message(bot_token, chat_id, caption)
+
+    base_url = load_env_var("TELEGRAM_API_BASE_URL", "https://api.telegram.org")
+    url = f"{base_url.rstrip('/')}/bot{bot_token}/sendPhoto"
+
+    proxy = load_env_var("HTTPS_PROXY") or load_env_var("HTTP_PROXY")
+    handlers = []
+    if proxy:
+        handlers.append(urllib.request.ProxyHandler({"http": proxy, "https": proxy}))
+    opener = urllib.request.build_opener(*handlers)
+
+    # Telegram caption length limit is 1024 characters
+    truncated_caption = caption[:1020] if len(caption) > 1020 else caption
+
+    for parse_mode in ["Markdown", None]:
+        payload = {
+            "chat_id": chat_id,
+            "photo": photo_url,
+            "caption": truncated_caption
+        }
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
+
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+
+        try:
+            with opener.open(req, timeout=15) as resp:
+                res = json.loads(resp.read().decode("utf-8"))
+                if res.get("ok"):
+                    return res
+        except urllib.error.HTTPError as e:
+            if parse_mode == "Markdown":
+                continue
+            # If photo fails, fallback to sendMessage
+            print(f"  [!] Photo send failed, falling back to standard text message...")
+            return send_telegram_message(bot_token, chat_id, caption)
+        except Exception:
+            return send_telegram_message(bot_token, chat_id, caption)
+
+    return send_telegram_message(bot_token, chat_id, caption)
+
+
 def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: int = 1, prune_published: bool = False):
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
@@ -132,9 +181,18 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
             from process_ai_content import format_to_clean_telegram_post
             clean_broadcast_text = format_to_clean_telegram_post(post_text, title, source_url, pillar)
 
+            # Check if an image URL is attached
+            raw_content = row[4] if len(row) > 4 else ""
+            img_match = re.search(r'\[IMAGE:\s*([^\]]+)\]', raw_content)
+            image_url = img_match.group(1).strip() if img_match else ""
+
             print(f"\n[+] Broadcasting post #{published_count + 1} to Telegram channel {channel_id}...")
             print(f"    Title: \"{title[:60]}\"")
-            tg_res = send_telegram_message(bot_token, channel_id, clean_broadcast_text)
+            if image_url:
+                print(f"    Attached Image: {image_url}")
+                tg_res = send_telegram_photo(bot_token, channel_id, image_url, clean_broadcast_text)
+            else:
+                tg_res = send_telegram_message(bot_token, channel_id, clean_broadcast_text)
             
             if tg_res.get("ok"):
                 msg_id = tg_res.get("result", {}).get("message_id", "")

@@ -63,23 +63,48 @@ def get_gemini_keys() -> list:
     return [k.strip() for k in keys_str.split(",") if k.strip()]
 
 
+UNIVERSAL_SYSTEM_CONSTRAINT = """
+CRITICAL INSTRUCTIONS FOR TELEGRAM BROADCAST:
+1. Output MUST be strictly valid JSON matching the schema.
+2. NEVER output literal meta words like 'Headline:', 'Heading:', '[Headline]', 'Body:', or 'Title:'.
+3. Write concise, punchy, professional, and engaging text ready to be broadcast directly to Telegram.
+4. Do NOT wrap output in markdown code block fences (no ```json). Output raw JSON object only.
+"""
+
+
 def load_prompt_template(pillar: str) -> str:
     filename = PROMPT_MAP.get(pillar, "technology.md")
     prompt_path = PROMPTS_DIR / filename
+    base_prompt = ""
     if prompt_path.exists():
         with open(prompt_path, "r", encoding="utf-8") as f:
-            return f.read()
-    return "You are an expert tech curator for Telegram. Summarize the following news concisely with emojis, key takeaways, and relevant hashtags."
+            base_prompt = f.read()
+    else:
+        base_prompt = "You are an expert tech curator for Telegram. Summarize the following news concisely with emojis, key takeaways, and relevant hashtags."
+    return f"{UNIVERSAL_SYSTEM_CONSTRAINT}\n\n{base_prompt}"
+
+
+def sanitize_text(text: str) -> str:
+    """Removes meta template labels, prompt artifacts, and markdown fences from post text."""
+    if not text:
+        return ""
+    # Remove code blocks
+    text = re.sub(r"^```(?:json|text|markdown)?\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text)
+    # Remove meta labels like "Headline:", "Heading:", "Title:", "Hook:", "Body:", "[Headline]"
+    text = re.sub(r"(?i)\b(headline|heading|title)\s*:\s*", "", text)
+    text = re.sub(r"(?i)\[\s*(headline|title|heading)\s*\]", "", text)
+    text = re.sub(r"(?i)\b(hook|body)\s*:\s*", "", text)
+    # Clean redundant blank lines
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 def clean_json_string(text: str) -> str:
     """Extracts valid JSON object from LLM string if wrapped in markdown code blocks or extra text."""
     text = text.strip()
-    # Remove markdown code block fences if present
     text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\s*```$", "", text)
-    
-    # Try to find the outermost { ... }
     match = re.search(r"\{[\s\S]*\}", text)
     if match:
         return match.group(0)
@@ -89,39 +114,39 @@ def clean_json_string(text: str) -> str:
 def format_to_clean_telegram_post(raw_ai_text: str, fallback_title: str, source_url: str, pillar: str) -> str:
     """
     Parses JSON output from LLM and formats it into a clean, professional,
-    high-engagement Telegram message.
+    high-engagement Telegram message without any template artifacts or meta-labels.
     """
     emoji = PILLAR_EMOJIS.get(pillar, "⚡")
     json_candidate = clean_json_string(raw_ai_text)
     
     try:
         data = json.loads(json_candidate)
-        headline = data.get("headline") or fallback_title
-        hook = data.get("hook", "").strip()
-        body = data.get("body", "").strip()
-        why_it_matters = data.get("why_it_matters", "").strip()
+        headline = sanitize_text(data.get("headline") or fallback_title)
+        hook = sanitize_text(data.get("hook", ""))
+        body = sanitize_text(data.get("body", ""))
+        why_it_matters = sanitize_text(data.get("why_it_matters", ""))
         key_points = data.get("key_points", [])
         hashtags = data.get("hashtags", [])
 
         lines = []
         # Header
-        lines.append(f"{emoji} *{headline}*\n")
+        if headline:
+            lines.append(f"{emoji} *{headline}*\n")
         
         # Hook / Intro
         if hook:
             lines.append(f"{hook}\n")
         
         # If body is structured text, clean it up
-        if body and body != hook:
-            # If body already contains "What happened", use it cleanly
+        if body and body != hook and body != headline:
             lines.append(f"{body}\n")
         elif why_it_matters:
             lines.append(f"*Why it matters:*\n{why_it_matters}\n")
 
         # Key Takeaways
         if key_points and isinstance(key_points, list):
-            # Check if key points are already in body
-            clean_points = [p.strip().lstrip("•-* ") for p in key_points if p.strip()]
+            clean_points = [sanitize_text(p).lstrip("•-* ") for p in key_points if p and p.strip()]
+            clean_points = [p for p in clean_points if p and p != headline]
             if clean_points and not any(p in body for p in clean_points[:2]):
                 lines.append("*Key Takeaways:*")
                 for pt in clean_points[:4]:
@@ -146,12 +171,9 @@ def format_to_clean_telegram_post(raw_ai_text: str, fallback_title: str, source_
 
     except Exception:
         # If not valid JSON, clean up any code artifacts and return clean text
-        clean_text = raw_ai_text.strip()
-        clean_text = re.sub(r"^```(?:json)?", "", clean_text)
-        clean_text = re.sub(r"```$", "", clean_text)
-        # Ensure source url is included
+        clean_text = sanitize_text(raw_ai_text)
         if source_url and source_url not in clean_text:
-            clean_text += f"\n\n🔗 [Source]({source_url})"
+            clean_text += f"\n\n🔗 [Read Full Article]({source_url})"
         return clean_text
 
 

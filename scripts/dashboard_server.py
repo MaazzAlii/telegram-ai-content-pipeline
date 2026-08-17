@@ -105,6 +105,7 @@ def get_sheets_service():
 
 def fetch_sheet_queue() -> dict:
     try:
+        import re
         service = get_sheets_service()
         res = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
@@ -116,15 +117,22 @@ def fetch_sheet_queue() -> dict:
         pending_count = 0
         approved_count = 0
         published_count = 0
+        rejected_count = 0
 
         for idx, r in enumerate(rows, start=2):
-            status = r[7] if len(r) > 7 else "PENDING"
+            status = r[7].strip() if len(r) > 7 and r[7] else "PENDING"
             if status == "PENDING":
                 pending_count += 1
             elif status == "APPROVED":
                 approved_count += 1
             elif status == "PUBLISHED":
                 published_count += 1
+            elif status == "REJECTED":
+                rejected_count += 1
+
+            raw_txt = r[4] if len(r) > 4 else ""
+            img_match = re.search(r'\[IMAGE:\s*([^\]]+)\]', raw_txt)
+            image_url = img_match.group(1).strip() if img_match else ""
 
             items.append({
                 "row_index": idx,
@@ -132,7 +140,8 @@ def fetch_sheet_queue() -> dict:
                 "source_title": r[1] if len(r) > 1 else "",
                 "source_url": r[2] if len(r) > 2 else "",
                 "topic_pillar": r[3] if len(r) > 3 else "TECH_DEVELOPMENT",
-                "raw_text": r[4] if len(r) > 4 else "",
+                "raw_text": raw_txt,
+                "image_url": image_url,
                 "ai_summary": r[5] if len(r) > 5 else "",
                 "telegram_post_text": r[6] if len(r) > 6 else "",
                 "status": status,
@@ -144,22 +153,59 @@ def fetch_sheet_queue() -> dict:
             "pending": pending_count,
             "approved": approved_count,
             "published": published_count,
+            "rejected": rejected_count,
             "autopilot": AUTOPILOT_CONFIG,
             "items": items[::-1]  # Newest first
         }
     except Exception as e:
-        return {"error": str(e), "items": [], "total": 0, "pending": 0, "approved": 0, "published": 0, "autopilot": AUTOPILOT_CONFIG}
+        return {"error": str(e), "items": [], "total": 0, "pending": 0, "approved": 0, "published": 0, "rejected": 0, "autopilot": AUTOPILOT_CONFIG}
 
 
-def update_single_post(row_index: int, new_text: str, new_status: str = "APPROVED") -> bool:
+def set_single_post_status(row_index: int, new_status: str) -> bool:
+    """Instantly set post status to APPROVED, REJECTED, or PENDING."""
     try:
         service = get_sheets_service()
+        service.spreadsheets().values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"'Content_Queue'!H{row_index}",
+            valueInputOption="USER_ENTERED",
+            body={"values": [[new_status]]}
+        ).execute()
+        add_log(f"[STATUS UPDATE] Row #{row_index} status updated to: {new_status}")
+        return True
+    except Exception as e:
+        add_log(f"[STATUS UPDATE ERROR] Row #{row_index}: {e}")
+        return False
+
+
+def update_single_post(row_index: int, new_text: str, new_status: str = "APPROVED", new_image_url: str = "") -> bool:
+    try:
+        service = get_sheets_service()
+        # Update text (col G) and status (col H)
         service.spreadsheets().values().update(
             spreadsheetId=SPREADSHEET_ID,
             range=f"'Content_Queue'!G{row_index}:H{row_index}",
             valueInputOption="USER_ENTERED",
             body={"values": [[new_text, new_status]]}
         ).execute()
+
+        # If image URL provided, update raw_text column E with [IMAGE: ...] tag
+        if new_image_url:
+            res = service.spreadsheets().values().get(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"'Content_Queue'!E{row_index}"
+            ).execute()
+            existing_raw = res.get("values", [[""]])[0][0] if res.get("values") else ""
+            import re
+            cleaned_raw = re.sub(r'\[IMAGE:\s*[^\]]+\]\s*', '', existing_raw).strip()
+            updated_raw = f"[IMAGE: {new_image_url}]\n{cleaned_raw}"
+            service.spreadsheets().values().update(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"'Content_Queue'!E{row_index}",
+                valueInputOption="USER_ENTERED",
+                body={"values": [[updated_raw]]}
+            ).execute()
+
         add_log(f"[SHEET UPDATE] Row {row_index} updated & set to {new_status}")
         return True
     except Exception as e:
@@ -167,10 +213,11 @@ def update_single_post(row_index: int, new_text: str, new_status: str = "APPROVE
         return False
 
 
-def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, pillar: str, post_id: str) -> dict:
-    from publish_telegram import send_telegram_message, load_env_var
+def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, pillar: str, post_id: str, image_url: str = ""):
     from process_ai_content import format_to_clean_telegram_post
+    from publish_telegram import send_telegram_message, send_telegram_photo, load_env_var
     import datetime
+    import re
 
     bot_token = load_env_var("TELEGRAM_BOT_TOKEN")
     channel_id = load_env_var("TELEGRAM_CHANNEL_ID")
@@ -178,29 +225,60 @@ def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, 
     if not bot_token or not channel_id:
         return {"ok": False, "error": "Bot credentials missing in .env"}
 
+    # Guard: check if already published
+    service = get_sheets_service()
+    try:
+        cur_row = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"'Content_Queue'!A{row_index}:M{row_index}"
+        ).execute()
+        vals = cur_row.get("values", [[]])[0]
+        cur_status = vals[7] if len(vals) > 7 else ""
+        if cur_status == "PUBLISHED":
+            return {"ok": False, "error": "This post is already marked as PUBLISHED."}
+    except Exception as e:
+        add_log(f"[WARN] Could not check current row status: {e}")
+
     # Always sanitize raw text / JSON before sending
     clean_text = format_to_clean_telegram_post(post_text, "", source_url, pillar)
 
+    # Check for image URL from argument or fetch from sheet
+    if not image_url:
+        try:
+            res = service.spreadsheets().values().get(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"'Content_Queue'!E{row_index}"
+            ).execute()
+            raw_text = res.get("values", [[""]])[0][0] if res.get("values") else ""
+            img_match = re.search(r'\[IMAGE:\s*([^\]]+)\]', raw_text)
+            if img_match:
+                image_url = img_match.group(1).strip()
+        except Exception:
+            pass
+
     add_log(f"\n[SINGLE PUBLISH] Broadcasting row {row_index} to {channel_id}...")
-    res = send_telegram_message(bot_token, channel_id, clean_text)
+    if image_url:
+        add_log(f"  Attached image: {image_url}")
+        res = send_telegram_photo(bot_token, channel_id, image_url, clean_text)
+    else:
+        res = send_telegram_message(bot_token, channel_id, clean_text)
     
     if res.get("ok"):
         msg_id = res.get("result", {}).get("message_id", "")
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
         add_log(f"  [SUCCESS] Message #{msg_id} published live to Telegram!")
 
-        # Update sheet status
+        # Update sheet status immediately
         try:
-            service = get_sheets_service()
             service.spreadsheets().values().update(
                 spreadsheetId=SPREADSHEET_ID,
                 range=f"'Content_Queue'!H{row_index}:L{row_index}",
                 valueInputOption="USER_ENTERED",
-                body=[["PUBLISHED", 0.95, "", now_iso, now_iso]]
+                body={"values": [["PUBLISHED", 0.95, "", now_iso, now_iso]]}
             ).execute()
 
             # Append to Published_Archive
-            archive_row = [post_id, str(msg_id), pillar, post_text, source_url, now_iso, 0, 0, 0]
+            archive_row = [post_id, str(msg_id), pillar, clean_text, source_url, now_iso, 0, 0, 0]
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,
                 range="'Published_Archive'!A1",
@@ -284,11 +362,33 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._send_json({"status": "started", "action": action})
             return
 
+        if parsed.path == "/api/set-status":
+            row_idx = payload.get("row_index")
+            new_status = payload.get("status", "APPROVED")
+            ok = set_single_post_status(row_idx, new_status)
+            self._send_json({"ok": ok, "row_index": row_idx, "status": new_status})
+            return
+
+        if parsed.path == "/api/fetch-topic":
+            keyword = payload.get("keyword", "").strip()
+            pillar = payload.get("pillar", "AI_INDUSTRY_STARTUPS")
+            max_items = int(payload.get("max_items", 4))
+            from fetch_feeds import fetch_by_keyword
+            add_log(f"\n[TOPIC SEARCH] Searching live news for '{keyword}' [{pillar}]...")
+            res = fetch_by_keyword(keyword, pillar, str(BASE_DIR / CREDENTIALS_FILE), SPREADSHEET_ID, max_items=max_items)
+            if res.get("ok"):
+                add_log(f"[TOPIC SUCCESS] Added {res.get('added', 0)} new articles for '{keyword}' to queue!")
+            else:
+                add_log(f"[TOPIC ERROR] {res.get('error')}")
+            self._send_json(res)
+            return
+
         if parsed.path == "/api/update-post":
             row_idx = payload.get("row_index")
             new_text = payload.get("text", "")
             new_status = payload.get("status", "APPROVED")
-            ok = update_single_post(row_idx, new_text, new_status)
+            new_image_url = payload.get("image_url", "")
+            ok = update_single_post(row_idx, new_text, new_status, new_image_url)
             self._send_json({"ok": ok})
             return
 
@@ -298,7 +398,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             url = payload.get("source_url", "")
             pillar = payload.get("topic_pillar", "TECH")
             post_id = payload.get("id", "")
-            res = publish_single_post_by_row(row_idx, text, url, pillar, post_id)
+            image_url = payload.get("image_url", "")
+            res = publish_single_post_by_row(row_idx, text, url, pillar, post_id, image_url)
             self._send_json(res)
             return
 
