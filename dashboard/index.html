@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Telegram AI Pipeline Control Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0b0f17;
+      --bg-surface: #121824;
+      --bg-card: rgba(22, 30, 46, 0.7);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(56, 189, 248, 0.25);
+      
+      --accent-cyan: #06b6d4;
+      --accent-blue: #3b82f6;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-purple: #a855f7;
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-sub: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.07) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.07) 0%, transparent 40%);
+    }
+
+    /* Top Navigation Bar */
+    header {
+      background: rgba(18, 24, 36, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+    }
+
+    .brand h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      background: linear-gradient(to right, #ffffff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-links {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .badge-channel {
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: #60a5fa;
+      padding: 0.35rem 0.8rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s;
+    }
+
+    .badge-channel:hover {
+      background: rgba(59, 130, 246, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .badge-sheet {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      padding: 0.35rem 0.8rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    /* Container */
+    main {
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      flex: 1;
+    }
+
+    /* KPI Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-glow);
+    }
+
+    .stat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .stat-value {
+      font-size: 2.25rem;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .stat-badge {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    .badge-amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .badge-emerald { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .badge-blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .badge-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+
+    /* Action Toolbar */
+    .action-panel {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .action-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .btn {
+      appearance: none;
+      border: none;
+      outline: none;
+      padding: 0.75rem 1.4rem;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      color: white;
+      box-shadow: 0 4px 14px rgba(6, 182, 212, 0.3);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 20px rgba(6, 182, 212, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-danger {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      color: #fb7185;
+    }
+
+    .btn-danger:hover {
+      background: rgba(244, 63, 94, 0.25);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Content Area & Queue Table */
+    .content-section {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 1024px) {
+      .content-section {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      max-height: 650px;
+    }
+
+    .panel-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .table-container {
+      overflow-y: auto;
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.875rem;
+    }
+
+    th {
+      background: rgba(18, 24, 36, 0.8);
+      color: var(--text-muted);
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .pillar-tag {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      display: inline-block;
+      background: rgba(148, 163, 184, 0.1);
+      color: var(--text-muted);
+    }
+
+    .status-pill {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      display: inline-block;
+    }
+
+    .status-PENDING { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .status-APPROVED { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .status-PUBLISHED { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+
+    /* Live Terminal Console */
+    .terminal {
+      background: #06090e;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: #38bdf8;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 250px;
+      max-height: 520px;
+      line-height: 1.5;
+    }
+
+    .terminal-line {
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-bottom: 0.25rem;
+    }
+
+    /* Modal for Post Preview */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .modal-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      max-width: 600px;
+      width: 90%;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    .preview-box {
+      background: #182232;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 12px;
+      padding: 1.25rem;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      max-height: 350px;
+      overflow-y: auto;
+      color: #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <h1>Telegram AI Pipeline</h1>
+      </div>
+    </div>
+
+    <div class="header-links">
+      <a href="https://t.me/maazzalii" target="_blank" class="badge-channel">
+        ✈️ @maazzalii
+      </a>
+      <a href="https://docs.google.com/spreadsheets/d/1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE/edit" target="_blank" class="badge-sheet">
+        📊 Google Sheet
+      </a>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- Top KPI Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Pending Ingested</span>
+          <span class="stat-badge badge-amber">Awaiting AI</span>
+        </div>
+        <div class="stat-value" id="val-pending">0</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Auto-Approved</span>
+          <span class="stat-badge badge-emerald">Ready to Post</span>
+        </div>
+        <div class="stat-value" id="val-approved">0</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Total In Queue</span>
+          <span class="stat-badge badge-blue">Sheet Rows</span>
+        </div>
+        <div class="stat-value" id="val-total">0</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>AI Provider Pool</span>
+          <span class="stat-badge badge-purple">Active Failover</span>
+        </div>
+        <div class="stat-value" style="font-size: 1.25rem; font-weight: 700; margin-top: 0.5rem;">
+          Gemini (x5) ➔ Mistral ➔ Groq
+        </div>
+      </div>
+    </div>
+
+    <!-- 1-Click Action Toolbar -->
+    <div class="action-panel">
+      <div class="action-group">
+        <button class="btn btn-primary" onclick="triggerAction('all')">
+          🚀 Run Full Cycle
+        </button>
+        <button class="btn btn-secondary" onclick="triggerAction('ingest')">
+          📥 Fetch Feeds
+        </button>
+        <button class="btn btn-secondary" onclick="triggerAction('process-ai')">
+          🧠 AI Auto-Format
+        </button>
+        <button class="btn btn-secondary" onclick="triggerAction('publish')">
+          📢 Publish to Telegram
+        </button>
+      </div>
+
+      <div class="action-group">
+        <button class="btn btn-danger" onclick="triggerAction('clear-queue')">
+          🧹 Clear Queue
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Content Split -->
+    <div class="content-section">
+      <!-- Live Content Queue Table -->
+      <div class="panel">
+        <div class="panel-title">
+          <span>Content Queue (Live Sheet Sync)</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: normal;">Auto-refreshing</span>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Article Title</th>
+                <th>Pillar</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="queue-tbody">
+              <tr>
+                <td colspan="4" style="text-align: center; color: var(--text-muted);">Loading sheet items...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Realtime Execution Terminal -->
+      <div class="panel">
+        <div class="panel-title">
+          <span>Live Console Output</span>
+          <span id="log-status" style="font-size: 0.75rem; color: var(--accent-emerald);">● Online</span>
+        </div>
+        <div class="terminal" id="terminal-console">
+          <div class="terminal-line">> System initialized. Click an action above to execute.</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Post Preview Modal -->
+  <div class="modal-backdrop" id="preview-modal" onclick="closeModal(event)">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <h2 style="font-size: 1.25rem;">📱 Telegram Post Preview</h2>
+      <div class="preview-box" id="modal-post-text"></div>
+      <div style="display: flex; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let queueItems = [];
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+
+        document.getElementById('val-pending').innerText = data.pending || 0;
+        document.getElementById('val-approved').innerText = data.approved || 0;
+        document.getElementById('val-total').innerText = data.total || 0;
+
+        queueItems = data.items || [];
+        renderQueueTable();
+      } catch (e) {
+        console.error("Failed fetching status", e);
+      }
+    }
+
+    async function fetchLogs() {
+      try {
+        const res = await fetch('/api/logs');
+        const data = await res.json();
+        const terminal = document.getElementById('terminal-console');
+        
+        terminal.innerHTML = data.logs.map(l => `<div class="terminal-line">${escapeHtml(l)}</div>`).join('');
+        terminal.scrollTop = terminal.scrollHeight;
+      } catch (e) {
+        console.error("Failed fetching logs", e);
+      }
+    }
+
+    function renderQueueTable() {
+      const tbody = document.getElementById('queue-tbody');
+      if (queueItems.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">Queue is clean. Click 'Fetch Feeds' to ingest new articles.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = queueItems.map((it, idx) => `
+        <tr>
+          <td>
+            <a href="${it.source_url}" target="_blank" style="color: var(--text-main); text-decoration: none; font-weight: 500;">
+              ${escapeHtml(it.source_title.slice(0, 65))}${it.source_title.length > 65 ? '...' : ''}
+            </a>
+          </td>
+          <td><span class="pillar-tag">${escapeHtml(it.topic_pillar)}</span></td>
+          <td><span class="status-pill status-${it.status}">${it.status}</span></td>
+          <td>
+            ${it.telegram_post_text ? `<button class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="openPreview(${idx})">Preview Post</button>` : `<span style="color: var(--text-sub); font-size: 0.75rem;">Pending AI</span>`}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function triggerAction(action) {
+      try {
+        const buttons = document.querySelectorAll('.btn');
+        buttons.forEach(b => b.disabled = true);
+        
+        await fetch('/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action })
+        });
+
+        setTimeout(() => {
+          buttons.forEach(b => b.disabled = false);
+          fetchStatus();
+        }, 1500);
+      } catch (e) {
+        alert("Action failed to dispatch: " + e);
+      }
+    }
+
+    function openPreview(index) {
+      const item = queueItems[index];
+      if (item && item.telegram_post_text) {
+        document.getElementById('modal-post-text').innerText = item.telegram_post_text;
+        document.getElementById('preview-modal').classList.add('open');
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('preview-modal').classList.remove('open');
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // Polling Intervals
+    fetchStatus();
+    fetchLogs();
+    setInterval(fetchStatus, 5000);
+    setInterval(fetchLogs, 2500);
+  </script>
+</body>
+</html>
