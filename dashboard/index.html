@@ -466,13 +466,35 @@
       background: var(--bg-surface);
       border: 1px solid var(--border-color);
       border-radius: 16px;
-      max-width: 650px;
-      width: 92%;
+      max-width: 720px;
+      width: 94%;
       padding: 1.5rem;
       display: flex;
       flex-direction: column;
-      gap: 1rem;
+      gap: 0.85rem;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    .referral-helper-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      background: rgba(0, 242, 254, 0.05);
+      border: 1px solid rgba(0, 242, 254, 0.2);
+      border-radius: 10px;
+      padding: 0.6rem 0.8rem;
+      align-items: center;
+    }
+
+    .ref-input {
+      flex: 1;
+      min-width: 200px;
+      background: #0b0f17;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      padding: 0.35rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
     }
 
     .edit-textarea {
@@ -483,8 +505,8 @@
       border-radius: 10px;
       color: #f8fafc;
       padding: 1rem;
-      font-family: inherit;
-      font-size: 0.9rem;
+      font-family: 'JetBrains Mono', monospace, sans-serif;
+      font-size: 0.85rem;
       line-height: 1.5;
       resize: vertical;
       outline: none;
@@ -498,6 +520,71 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+    }
+
+    /* Batch Selection Toolbar */
+    .batch-bar {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+    }
+    .batch-bar.active {
+      display: flex;
+    }
+
+    /* Quick Filter Pills */
+    .filter-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.2rem;
+    }
+    .filter-pill {
+      font-size: 0.75rem;
+      padding: 0.3rem 0.7rem;
+      border-radius: 20px;
+      background: #182232;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-pill:hover, .filter-pill.active {
+      background: var(--accent-cyan);
+      color: #030712;
+      font-weight: 700;
+      border-color: var(--accent-cyan);
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #0f172a;
+      border: 1px solid var(--accent-cyan);
+      color: #fff;
+      padding: 0.75rem 1.25rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      z-index: 200;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s ease;
+      pointer-events: none;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
     }
   </style>
 </head>
@@ -614,19 +701,25 @@
       <!-- Live Content Queue Table -->
       <div class="panel">
         <div class="panel-header-controls">
-          <span style="font-weight: 700; font-size: 0.95rem;">Queue & Post Inspector</span>
-          
-          <!-- Topic Filter -->
-          <div style="display: flex; gap: 0.4rem; align-items: center;">
-            <span style="font-size: 0.75rem; color: var(--text-muted);">Filter:</span>
-            <select id="pillar-filter" class="filter-select" onchange="renderQueueTable()">
-              <option value="ALL">All Categories</option>
-              <option value="AI_TOOLS">🛠️ AI Tools</option>
-              <option value="AI_INDUSTRY_STARTUPS">🚀 AI Startups & News</option>
-              <option value="CYBERSECURITY">🛡️ Cybersecurity</option>
-              <option value="LEARNING_RESOURCES">📚 Learning Resources</option>
-              <option value="TECH_DEVELOPMENT">⚡ Tech Development</option>
-            </select>
+          <div>
+            <span style="font-weight: 700; font-size: 0.95rem;">Queue & Post Inspector</span>
+            <div class="filter-pills" id="filter-pills-bar">
+              <button class="filter-pill active" onclick="setCategoryFilter('ALL')">🌟 All</button>
+              <button class="filter-pill" onclick="setCategoryFilter('AI_TOOLS')">🛠️ AI Tools (Referrals)</button>
+              <button class="filter-pill" onclick="setCategoryFilter('LEARNING_RESOURCES')">💡 Prompts & Guides</button>
+              <button class="filter-pill" onclick="setCategoryFilter('AI_INDUSTRY_STARTUPS')">🚀 AI News & Startups</button>
+              <button class="filter-pill" onclick="setCategoryFilter('CYBERSECURITY')">🛡️ Cyber Security</button>
+              <button class="filter-pill" onclick="setCategoryFilter('TECH_DEVELOPMENT')">⚡ Tech Dev</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Multi-Select Batch Action Bar -->
+        <div class="batch-bar" id="batch-action-bar">
+          <span id="batch-count-text" style="font-size: 0.8rem; font-weight: 600; color: var(--accent-cyan);">0 items selected</span>
+          <div style="display: flex; gap: 0.4rem;">
+            <button class="btn btn-success btn-row" onclick="publishBatchSelected()">📢 Publish Selected</button>
+            <button class="btn btn-secondary btn-row" onclick="clearAllSelections()">Cancel</button>
           </div>
         </div>
 
@@ -634,15 +727,16 @@
           <table>
             <thead>
               <tr>
+                <th style="width: 32px;"><input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)"></th>
                 <th>Article Title</th>
-                <th>Pillar</th>
+                <th>Category</th>
                 <th>Status</th>
                 <th style="text-align: right;">Actions</th>
               </tr>
             </thead>
             <tbody id="queue-tbody">
               <tr>
-                <td colspan="4" style="text-align: center; color: var(--text-muted);">Loading sheet items...</td>
+                <td colspan="5" style="text-align: center; color: var(--text-muted);">Loading sheet items...</td>
               </tr>
             </tbody>
           </table>
@@ -671,25 +765,47 @@
         <span id="modal-row-tag" class="pillar-tag">Row #</span>
       </div>
 
-      <p style="font-size: 0.8rem; color: var(--text-muted);">
-        Customize the message, insert your referral link, or tweak the hook before broadcasting to Telegram.
-      </p>
+      <!-- Referral Link Insertion Bar -->
+      <div class="referral-helper-bar">
+        <span style="font-size: 0.75rem; font-weight: 700; color: var(--accent-cyan);">🔗 Referral Link:</span>
+        <input type="url" id="ref-link-input" class="ref-input" placeholder="https://youraffiliatelink.com/ref?code=..." />
+        <button class="btn btn-secondary btn-row" onclick="insertReferralLink()">➕ Insert Link</button>
+        <button class="btn btn-secondary btn-row" onclick="insertPromptGuideTemplate()">💡 Add Prompt Box</button>
+      </div>
 
-      <textarea id="modal-edit-text" class="edit-textarea" placeholder="Post text..."></textarea>
+      <textarea id="modal-edit-text" class="edit-textarea" placeholder="Post text will load here..."></textarea>
 
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
         <div style="display: flex; gap: 0.5rem;">
           <button class="btn btn-secondary" onclick="savePostChanges()">💾 Save Changes</button>
-          <button class="btn btn-success" onclick="publishCurrentModalPost()">🚀 Publish Now</button>
+          <button class="btn btn-success" id="modal-publish-btn" onclick="publishCurrentModalPost()">🚀 Publish Now</button>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- Toast Element -->
+  <div id="toast-notify" class="toast">
+    <span id="toast-icon">⚡</span>
+    <span id="toast-msg">Notification message</span>
+  </div>
+
   <script>
     let queueItems = [];
     let currentEditingRow = null;
+    let selectedRowIndices = new Set();
+    let currentFilter = 'ALL';
+
+    function showToast(msg, isSuccess = true) {
+      const toast = document.getElementById('toast-notify');
+      const toastMsg = document.getElementById('toast-msg');
+      const toastIcon = document.getElementById('toast-icon');
+      toastMsg.innerText = msg;
+      toastIcon.innerText = isSuccess ? '✅' : '⚠️';
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3500);
+    }
 
     async function fetchStatus() {
       try {
@@ -720,55 +836,133 @@
         const data = await res.json();
         const terminal = document.getElementById('terminal-console');
         
-        terminal.innerHTML = data.logs.map(l => `<div class="terminal-line">${escapeHtml(l)}</div>`).join('');
+        terminal.innerHTML = (data.logs || []).map(l => `<div class="terminal-line">${escapeHtml(l)}</div>`).join('');
         terminal.scrollTop = terminal.scrollHeight;
       } catch (e) {
         console.error("Failed fetching logs", e);
       }
     }
 
+    function setCategoryFilter(pillar) {
+      currentFilter = pillar;
+      document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      event.target.classList.add('active');
+      renderQueueTable();
+    }
+
     function renderQueueTable() {
       const tbody = document.getElementById('queue-tbody');
-      const filter = document.getElementById('pillar-filter').value;
 
       const filtered = queueItems.filter(it => {
-        if (filter === 'ALL') return true;
-        return it.topic_pillar === filter;
+        if (currentFilter === 'ALL') return true;
+        return it.topic_pillar === currentFilter;
       });
 
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">No items matching category filter.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">No items matching category filter.</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = filtered.map((it, idx) => `
-        <tr>
-          <td>
-            <a href="${it.source_url}" target="_blank" style="color: var(--text-main); text-decoration: none; font-weight: 500;">
-              ${escapeHtml(it.source_title.slice(0, 55))}${it.source_title.length > 55 ? '...' : ''}
-            </a>
-          </td>
-          <td><span class="pillar-tag">${escapeHtml(it.topic_pillar)}</span></td>
-          <td><span class="status-pill status-${it.status}">${it.status}</span></td>
-          <td style="text-align: right;">
-            <div style="display: inline-flex; gap: 0.3rem;">
-              ${it.telegram_post_text ? `
+      tbody.innerHTML = filtered.map(it => {
+        const isChecked = selectedRowIndices.has(it.row_index);
+        return `
+          <tr>
+            <td>
+              <input type="checkbox" class="row-checkbox" ${isChecked ? 'checked' : ''} onchange="toggleRowSelection(${it.row_index}, this.checked)">
+            </td>
+            <td>
+              <a href="${it.source_url}" target="_blank" style="color: var(--text-main); text-decoration: none; font-weight: 500;">
+                ${escapeHtml(it.source_title ? it.source_title.slice(0, 55) : 'Untitled')}${it.source_title && it.source_title.length > 55 ? '...' : ''}
+              </a>
+            </td>
+            <td><span class="pillar-tag">${escapeHtml(it.topic_pillar || 'GENERAL')}</span></td>
+            <td><span class="status-pill status-${it.status}">${it.status}</span></td>
+            <td style="text-align: right;">
+              <div style="display: inline-flex; gap: 0.3rem;">
                 <button class="btn btn-secondary btn-row" onclick="openEditModal(${it.row_index})">✏️ Edit & Ref</button>
-                <button class="btn btn-success btn-row" onclick="publishSingle(${it.row_index})">📢 Post</button>
-              ` : `
-                <span style="color: var(--text-sub); font-size: 0.72rem;">Pending AI</span>
-              `}
-            </div>
-          </td>
-        </tr>
-      `).join('');
+                <button class="btn btn-success btn-row" id="btn-post-${it.row_index}" onclick="publishSingle(${it.row_index})">📢 Post</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      updateBatchBar();
+    }
+
+    function toggleRowSelection(rowIndex, isChecked) {
+      if (isChecked) {
+        selectedRowIndices.add(rowIndex);
+      } else {
+        selectedRowIndices.delete(rowIndex);
+      }
+      updateBatchBar();
+    }
+
+    function toggleSelectAll(isChecked) {
+      const filtered = queueItems.filter(it => currentFilter === 'ALL' || it.topic_pillar === currentFilter);
+      if (isChecked) {
+        filtered.forEach(it => selectedRowIndices.add(it.row_index));
+      } else {
+        filtered.forEach(it => selectedRowIndices.delete(it.row_index));
+      }
+      renderQueueTable();
+    }
+
+    function clearAllSelections() {
+      selectedRowIndices.clear();
+      document.getElementById('select-all-cb').checked = false;
+      renderQueueTable();
+    }
+
+    function updateBatchBar() {
+      const batchBar = document.getElementById('batch-action-bar');
+      const batchText = document.getElementById('batch-count-text');
+      const count = selectedRowIndices.size;
+
+      if (count > 0) {
+        batchBar.classList.add('active');
+        batchText.innerText = `${count} item${count > 1 ? 's' : ''} selected`;
+      } else {
+        batchBar.classList.remove('active');
+      }
+    }
+
+    async function publishBatchSelected() {
+      const indices = Array.from(selectedRowIndices);
+      if (indices.length === 0) return;
+
+      if (!confirm(`Are you sure you want to publish all ${indices.length} selected post(s) to Telegram?`)) return;
+
+      showToast(`Publishing ${indices.length} posts to Telegram...`);
+      for (const rIdx of indices) {
+        const item = queueItems.find(it => it.row_index === rIdx);
+        if (item) {
+          await fetch('/api/publish-single', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              row_index: item.row_index,
+              text: item.telegram_post_text || item.source_title,
+              source_url: item.source_url,
+              topic_pillar: item.topic_pillar,
+              id: item.id
+            })
+          });
+        }
+      }
+
+      clearAllSelections();
+      showToast(`Batch publishing completed!`);
+      fetchStatus();
     }
 
     async function triggerAction(action) {
       try {
         const buttons = document.querySelectorAll('.btn');
         buttons.forEach(b => b.disabled = true);
-        
+        showToast(`Triggering pipeline action: ${action}...`);
+
         await fetch('/api/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -793,6 +987,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled, interval_hours: hours })
       });
+      showToast(enabled ? `Auto-Pilot Activated (Every ${hours}h)` : 'Auto-Pilot Paused');
       fetchStatus();
     }
 
@@ -801,15 +996,53 @@
       if (!item) return;
 
       currentEditingRow = item;
-      document.getElementById('modal-row-tag').innerText = `Row #${rowIndex} [${item.topic_pillar}]`;
-      document.getElementById('modal-edit-text').value = item.telegram_post_text || '';
+      document.getElementById('modal-row-tag').innerText = `Row #${rowIndex} [${item.topic_pillar || 'TECH'}]`;
+
+      // If telegram_post_text is empty, create a clean default template so the box is NEVER empty!
+      let initialText = item.telegram_post_text;
+      if (!initialText || initialText.trim() === '') {
+        const cleanTitle = (item.source_title || 'Exciting AI Update').replace(/[^\w\s-.,!?]/gi, '');
+        initialText = `🔥 *${cleanTitle}*\n\n` +
+          `💡 Here is the latest breakdown on this AI tool/technology:\n\n` +
+          `• Key feature 1: High performance and automation.\n` +
+          `• Key feature 2: Designed for rapid productivity.\n\n` +
+          `🔗 Read more / Access: ${item.source_url || 'https://t.me/maazzalii'}\n\n` +
+          `#AI #ArtificialIntelligence #TechUpdates`;
+      }
+
+      document.getElementById('modal-edit-text').value = initialText;
+      document.getElementById('ref-link-input').value = '';
       document.getElementById('edit-modal').classList.add('open');
+    }
+
+    function insertReferralLink() {
+      const refUrl = document.getElementById('ref-link-input').value.trim();
+      if (!refUrl) {
+        alert("Please paste your referral URL in the box first.");
+        return;
+      }
+
+      const txtArea = document.getElementById('modal-edit-text');
+      const snippet = `\n\n👉 *Get Exclusive Access / Referral Bonus:* [Click Here](${refUrl})\n`;
+      txtArea.value += snippet;
+      showToast("Referral link added to post draft!");
+    }
+
+    function insertPromptGuideTemplate() {
+      const txtArea = document.getElementById('modal-edit-text');
+      const snippet = `\n\n💡 *PROMPT TEMPLATE:*\n` +
+        `\`\`\`text\n` +
+        `Act as an expert AI consultant. Analyze [TOPIC] and provide 3 high-impact strategies to automate [TASK].\n` +
+        `\`\`\`\n`;
+      txtArea.value += snippet;
+      showToast("Prompt guide box added!");
     }
 
     async function savePostChanges() {
       if (!currentEditingRow) return;
       const newText = document.getElementById('modal-edit-text').value;
 
+      showToast("Saving changes to Google Sheet...");
       await fetch('/api/update-post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -821,14 +1054,18 @@
       });
 
       closeModal();
+      showToast("Changes saved successfully!");
       fetchStatus();
     }
 
     async function publishCurrentModalPost() {
       if (!currentEditingRow) return;
       const newText = document.getElementById('modal-edit-text').value;
+      const btn = document.getElementById('modal-publish-btn');
+      btn.disabled = true;
+      btn.innerText = 'Publishing...';
 
-      // 1. Save first
+      // 1. Save
       await fetch('/api/update-post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -840,7 +1077,7 @@
       });
 
       // 2. Publish
-      await fetch('/api/publish-single', {
+      const res = await fetch('/api/publish-single', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -851,8 +1088,18 @@
           id: currentEditingRow.id
         })
       });
+      const data = await res.json();
 
+      btn.disabled = false;
+      btn.innerText = '🚀 Publish Now';
       closeModal();
+
+      if (data.ok) {
+        showToast("Successfully posted to Telegram!");
+      } else {
+        alert("Broadcast failed: " + (data.error || "Network error"));
+      }
+
       fetchStatus();
     }
 
@@ -860,17 +1107,38 @@
       const item = queueItems.find(it => it.row_index === rowIndex);
       if (!item) return;
 
-      await fetch('/api/publish-single', {
+      const btn = document.getElementById(`btn-post-${rowIndex}`);
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = '⏳';
+      }
+
+      showToast(`Broadcasting Row #${rowIndex} to Telegram...`);
+
+      const res = await fetch('/api/publish-single', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           row_index: item.row_index,
-          text: item.telegram_post_text,
+          text: item.telegram_post_text || item.source_title,
           source_url: item.source_url,
           topic_pillar: item.topic_pillar,
           id: item.id
         })
       });
+      const data = await res.json();
+
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = '📢 Post';
+      }
+
+      if (data.ok) {
+        showToast("Successfully published to Telegram!");
+      } else {
+        alert("Publish failed: " + (data.error || "Connection error. Make sure your VPN/WARP is active if in Pakistan."));
+      }
+
       fetchStatus();
     }
 
