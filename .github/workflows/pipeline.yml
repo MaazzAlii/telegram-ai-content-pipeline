@@ -1,0 +1,76 @@
+name: Telegram AI Content Pipeline Runner
+
+on:
+  schedule:
+    # Runs automatically every 3 hours (UTC)
+    - cron: '0 */3 * * *'
+  # Allows manual 1-click trigger from your Mobile Phone or PC browser
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Pipeline Action to execute'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - ingest
+          - process-ai
+          - publish
+          - clear-queue
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r scripts/requirements.txt
+
+      - name: Create Credentials and Environment
+        env:
+          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          # Write service account JSON file from GitHub secret
+          echo "$GOOGLE_SA_JSON" > telegram-ai-pipeline-85177bbe5835.json
+          
+          # Write .env file
+          cat <<EOF > .env
+          GOOGLE_SHEET_ID=$GOOGLE_SHEET_ID
+          TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
+          TELEGRAM_CHANNEL_ID=$TELEGRAM_CHANNEL_ID
+          GEMINI_API_KEYS=$GEMINI_API_KEYS
+          MISTRAL_API_KEY=$MISTRAL_API_KEY
+          GROQ_API_KEY=$GROQ_API_KEY
+          AUTO_APPROVE=true
+          AUTO_PRUNE_PUBLISHED=false
+          EOF
+
+      - name: Execute Pipeline
+        run: |
+          ACTION="${{ github.event.inputs.action || 'all' }}"
+          if [ "$ACTION" = "all" ]; then
+            python scripts/run_pipeline.py --all
+          elif [ "$ACTION" = "ingest" ]; then
+            python scripts/run_pipeline.py --ingest
+          elif [ "$ACTION" = "process-ai" ]; then
+            python scripts/run_pipeline.py --process-ai
+          elif [ "$ACTION" = "publish" ]; then
+            python scripts/run_pipeline.py --publish
+          elif [ "$ACTION" = "clear-queue" ]; then
+            python scripts/run_pipeline.py --clear-queue
+          fi
