@@ -152,12 +152,17 @@ def extract_image_url(item_node, desc_text: str = "") -> str:
     return ""
 
 
+import ssl
+
 def fetch_rss_entries(feed_url: str, pillar: str, trust_level: int = 2, max_items: int = 3) -> list:
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) TelegramAIPipeline/1.0"}
     req = urllib.request.Request(feed_url, headers=headers)
     items = []
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+        with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
             content = resp.read()
         
         root = ET.fromstring(content)
