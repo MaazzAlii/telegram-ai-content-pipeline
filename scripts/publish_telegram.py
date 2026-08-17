@@ -2,8 +2,8 @@
 Telegram Publisher for Telegram AI Content Pipeline.
 
 Reads APPROVED items from Content_Queue in Google Sheets, broadcasts the post
-to your Telegram channel via the Telegram Bot API with formatted HTML/Markdown,
-moves the record to Published_Archive, and updates pipeline metrics.
+to your Telegram channel via the Telegram Bot API, moves the record to
+Published_Archive, and updates Google Sheets status to PUBLISHED.
 
 Usage:
     python scripts/publish_telegram.py --sheet-id 1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE
@@ -17,6 +17,10 @@ import datetime
 import urllib.request
 import urllib.parse
 from pathlib import Path
+
+# Force UTF-8 on Windows consoles
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
@@ -34,22 +38,44 @@ def load_env_var(key: str, default: str = "") -> str:
 
 
 def send_telegram_message(bot_token: str, chat_id: str, text: str) -> dict:
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": False
-    }
+    base_url = load_env_var("TELEGRAM_API_BASE_URL", "https://api.telegram.org")
+    url = f"{base_url.rstrip('/')}/bot{bot_token}/sendMessage"
+    
+    proxy = load_env_var("HTTPS_PROXY") or load_env_var("HTTP_PROXY")
+    handlers = []
+    if proxy:
+        handlers.append(urllib.request.ProxyHandler({"http": proxy, "https": proxy}))
+    opener = urllib.request.build_opener(*handlers)
+    
+    # Try sending with Markdown first; fallback to raw text if markup parsing errors occur
+    for parse_mode in ["Markdown", None]:
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "disable_web_page_preview": False
+        }
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
 
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"}
-    )
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
 
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+        try:
+            with opener.open(req, timeout=15) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8")
+            if parse_mode == "Markdown":
+                print(f"  [!] Markdown parse warning: {err_body}. Retrying in plain text mode...")
+                continue
+            return {"ok": False, "description": err_body}
+        except Exception as e:
+            return {"ok": False, "description": str(e)}
+
+    return {"ok": False, "description": "Unknown error sending message"}
 
 
 def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: int = 1):
@@ -60,8 +86,7 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
     channel_id = load_env_var("TELEGRAM_CHANNEL_ID")
 
     if not bot_token or not channel_id:
-        print("\n[!] Note: TELEGRAM_BOT_TOKEN or TELEGRAM_CHANNEL_ID not set in .env yet.")
-        print("    Create a bot with @BotFather on Telegram and add your bot token & channel ID to .env to publish live posts.")
+        print("\n[!] Note: TELEGRAM_BOT_TOKEN or TELEGRAM_CHANNEL_ID not set in .env.")
         return
 
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -92,6 +117,7 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
         status = row[7] if len(row) > 7 else ""
         if status == "APPROVED":
             post_id = row[0] if len(row) > 0 else ""
+            title = row[1] if len(row) > 1 else ""
             source_url = row[2] if len(row) > 2 else ""
             pillar = row[3] if len(row) > 3 else ""
             post_text = row[6] if len(row) > 6 else ""
@@ -99,50 +125,51 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
             if not post_text:
                 continue
 
-            print(f"\n[+] Broadcasting post to Telegram channel {channel_id}...")
-            try:
-                tg_res = send_telegram_message(bot_token, channel_id, post_text)
-                if tg_res.get("ok"):
-                    msg_id = tg_res.get("result", {}).get("message_id", "")
-                    print(f"  [OK] Successfully published message ID #{msg_id}!")
+            print(f"\n[+] Broadcasting post #{published_count + 1} to Telegram channel {channel_id}...")
+            print(f"    Title: \"{title[:60]}\"")
+            tg_res = send_telegram_message(bot_token, channel_id, post_text)
+            
+            if tg_res.get("ok"):
+                msg_id = tg_res.get("result", {}).get("message_id", "")
+                print(f"  [SUCCESS] Published to Telegram! Message ID: #{msg_id}")
 
-                    # 1. Update Content_Queue row to PUBLISHED
-                    service.spreadsheets().values().update(
-                        spreadsheetId=spreadsheet_id,
-                        range=f"'Content_Queue'!H{idx}:L{idx}",
-                        valueInputOption="USER_ENTERED",
-                        body={
-                            "values": [["PUBLISHED", row[8] if len(row) > 8 else 0.9, row[9] if len(row) > 9 else "", now_iso, now_iso]]
-                        }
-                    ).execute()
+                # 1. Update Content_Queue row to PUBLISHED
+                service.spreadsheets().values().update(
+                    spreadsheetId=spreadsheet_id,
+                    range=f"'Content_Queue'!H{idx}:L{idx}",
+                    valueInputOption="USER_ENTERED",
+                    body={
+                        "values": [["PUBLISHED", row[8] if len(row) > 8 else 0.9, row[9] if len(row) > 9 else "", now_iso, now_iso]]
+                    }
+                ).execute()
 
-                    # 2. Append to Published_Archive
-                    archive_row = [
-                        post_id,
-                        str(msg_id),
-                        pillar,
-                        post_text,
-                        source_url,
-                        now_iso,
-                        0,  # views_count
-                        0,  # forwards_count
-                        0   # reactions_count
-                    ]
-                    service.spreadsheets().values().append(
-                        spreadsheetId=spreadsheet_id,
-                        range="'Published_Archive'!A1",
-                        valueInputOption="USER_ENTERED",
-                        insertDataOption="INSERT_ROWS",
-                        body={"values": [archive_row]}
-                    ).execute()
+                # 2. Append to Published_Archive
+                archive_row = [
+                    post_id,
+                    str(msg_id),
+                    pillar,
+                    post_text,
+                    source_url,
+                    now_iso,
+                    0,  # views_count
+                    0,  # forwards_count
+                    0   # reactions_count
+                ]
+                service.spreadsheets().values().append(
+                    spreadsheetId=spreadsheet_id,
+                    range="'Published_Archive'!A1",
+                    valueInputOption="USER_ENTERED",
+                    insertDataOption="INSERT_ROWS",
+                    body={"values": [archive_row]}
+                ).execute()
 
-                    published_count += 1
-                else:
-                    print(f"  [!] Telegram error: {tg_res}")
-            except Exception as e:
-                print(f"  [!] Failed publishing to Telegram: {e}")
+                published_count += 1
+            else:
+                desc = tg_res.get("description", "Unknown error")
+                print(f"  [!] Telegram error: {desc}")
+                print("  💡 Tip: Make sure you added your bot as an Administrator with 'Post Messages' permission in your channel!")
 
-    print(f"\n[SUCCESS] Published {published_count} post(s) to Telegram!\n")
+    print(f"\n[SUMMARY] Successfully published {published_count} post(s) to Telegram!\n")
 
 
 def main():
