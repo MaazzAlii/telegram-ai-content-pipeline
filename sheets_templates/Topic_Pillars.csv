@@ -1,0 +1,6 @@
+pillar_id,pillar_name,description,weight,is_active,prompt_template_file
+AI_TOOLS,AI Tools & Product Launches,Breakdowns and workflows for newly released AI tools and practical productivity hacks,0.25,TRUE,ai_tools.md
+AI_INDUSTRY_STARTUPS,AI Industry & Startup News,"Major AI developments, model releases, venture funding, and market movements",0.25,TRUE,ai_industry_startups.md
+CYBERSECURITY,Cybersecurity & Threat Intelligence,"Zero-day vulnerabilities, breach alerts, defensive tactics, and security research",0.2,TRUE,cybersecurity.md
+LEARNING_RESOURCES,Curated Learning Resources & Roadmaps,"Free courses, GitHub repos, cheat sheets, and technical deep-dives",0.15,TRUE,learning_resources.md
+TECH_DEVELOPMENT,Technology Trends & Development,"Software architecture, frameworks, cloud native, DevOps, and backend engineering",0.15,TRUE,technology.md

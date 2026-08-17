@@ -1,0 +1,113 @@
+{
+  "spreadsheet_title": "Telegram Content Pipeline",
+  "tabs": {
+    "Content_Queue": {
+      "description": "Incoming and pending content items waiting for AI processing, review, and scheduling.",
+      "headers": [
+        "id",
+        "source_title",
+        "source_url",
+        "topic_pillar",
+        "raw_text",
+        "ai_summary",
+        "telegram_post_text",
+        "status",
+        "quality_score",
+        "created_at",
+        "scheduled_at",
+        "published_at",
+        "error_log"
+      ],
+      "validations": {
+        "status": ["PENDING", "APPROVED", "REJECTED", "PUBLISHED", "FAILED"],
+        "topic_pillar": [
+          "AI_TOOLS",
+          "AI_INDUSTRY_STARTUPS",
+          "CYBERSECURITY",
+          "LEARNING_RESOURCES",
+          "TECH_DEVELOPMENT"
+        ]
+      }
+    },
+    "Topic_Pillars": {
+      "description": "Configuration for content categories, prompt mappings, and scheduling weights.",
+      "headers": [
+        "pillar_id",
+        "pillar_name",
+        "description",
+        "weight",
+        "is_active",
+        "prompt_template_file"
+      ],
+      "default_data": [
+        [
+          "AI_TOOLS",
+          "AI Tools & Product Launches",
+          "Breakdowns and workflows for newly released AI tools and practical productivity hacks",
+          0.25,
+          "TRUE",
+          "ai_tools.md"
+        ],
+        [
+          "AI_INDUSTRY_STARTUPS",
+          "AI Industry & Startup News",
+          "Major AI developments, model releases, venture funding, and market movements",
+          0.25,
+          "TRUE",
+          "ai_industry_startups.md"
+        ],
+        [
+          "CYBERSECURITY",
+          "Cybersecurity & Threat Intelligence",
+          "Zero-day vulnerabilities, breach alerts, defensive tactics, and security research",
+          0.20,
+          "TRUE",
+          "cybersecurity.md"
+        ],
+        [
+          "LEARNING_RESOURCES",
+          "Curated Learning Resources & Roadmaps",
+          "Free courses, GitHub repos, cheat sheets, and technical deep-dives",
+          0.15,
+          "TRUE",
+          "learning_resources.md"
+        ],
+        [
+          "TECH_DEVELOPMENT",
+          "Technology Trends & Development",
+          "Software architecture, frameworks, cloud native, DevOps, and backend engineering",
+          0.15,
+          "TRUE",
+          "technology.md"
+        ]
+      ]
+    },
+    "Published_Archive": {
+      "description": "Archive of all successfully published Telegram messages with message IDs and engagement tracking.",
+      "headers": [
+        "id",
+        "telegram_message_id",
+        "topic_pillar",
+        "post_text",
+        "source_url",
+        "published_at",
+        "views_count",
+        "forwards_count",
+        "reactions_count"
+      ]
+    },
+    "Pipeline_Metrics": {
+      "description": "Daily aggregated execution statistics for pipeline health, ingestion rates, and error tracking.",
+      "headers": [
+        "date",
+        "total_ingested",
+        "total_processed",
+        "approved_count",
+        "published_count",
+        "failed_count",
+        "avg_processing_time_sec",
+        "last_health_status"
+      ]
+    }
+  }
+}

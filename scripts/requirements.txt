@@ -1,3 +1,5 @@
 # Optional Python helper dependencies
 requests>=2.31.0
 pyyaml>=6.0.1
+google-api-python-client>=2.110.0
+google-auth>=2.25.0

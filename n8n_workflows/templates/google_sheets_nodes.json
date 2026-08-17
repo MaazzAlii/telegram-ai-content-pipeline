@@ -1,0 +1,87 @@
+{
+  "name": "Telegram AI Content Pipeline - Google Sheets Node Specs",
+  "description": "Standardized n8n Google Sheets integration nodes for queue polling, status updating, archive logging, and metrics recording.",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Content_Queue",
+        "options": {
+          "filters": {
+            "status": "PENDING"
+          },
+          "limit": 10
+        }
+      },
+      "name": "Fetch Pending Queue Items",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Content_Queue",
+        "matchingColumn": "id",
+        "fields": {
+          "status": "={{ $json.status }}",
+          "ai_summary": "={{ $json.ai_summary }}",
+          "telegram_post_text": "={{ $json.telegram_post_text }}",
+          "quality_score": "={{ $json.quality_score }}",
+          "scheduled_at": "={{ $json.scheduled_at }}",
+          "error_log": "={{ $json.error_log || '' }}"
+        }
+      },
+      "name": "Update Queue Item Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Published_Archive",
+        "fields": {
+          "id": "={{ $json.id }}",
+          "telegram_message_id": "={{ $json.telegram_message_id }}",
+          "topic_pillar": "={{ $json.topic_pillar }}",
+          "post_text": "={{ $json.telegram_post_text }}",
+          "source_url": "={{ $json.source_url }}",
+          "published_at": "={{ $now.toISO() }}",
+          "views_count": 0,
+          "forwards_count": 0,
+          "reactions_count": 0
+        }
+      },
+      "name": "Log to Published Archive",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Pipeline_Metrics",
+        "matchingColumn": "date",
+        "fields": {
+          "date": "={{ $today.toFormat('yyyy-MM-dd') }}",
+          "total_ingested": "={{ $json.total_ingested }}",
+          "total_processed": "={{ $json.total_processed }}",
+          "approved_count": "={{ $json.approved_count }}",
+          "published_count": "={{ $json.published_count }}",
+          "failed_count": "={{ $json.failed_count }}",
+          "avg_processing_time_sec": "={{ $json.avg_processing_time_sec }}",
+          "last_health_status": "HEALTHY"
+        }
+      },
+      "name": "Record Pipeline Metrics",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1000, 300]
+    }
+  ]
+}
