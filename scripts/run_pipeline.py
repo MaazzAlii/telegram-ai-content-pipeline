@@ -7,13 +7,15 @@ Coordinates the entire pipeline:
 3. Publishes approved content to your Telegram Channel.
 4. Archives published posts and tracks metrics.
 
-Usage:
-    python scripts/run_pipeline.py --all
-    python scripts/run_pipeline.py --ingest
-    python scripts/run_pipeline.py --process-ai
-    python scripts/run_pipeline.py --publish
+Commands:
+    python scripts/run_pipeline.py --all           # Run full cycle
+    python scripts/run_pipeline.py --ingest        # Ingest new articles
+    python scripts/run_pipeline.py --process-ai    # Auto-format & approve pending items
+    python scripts/run_pipeline.py --publish       # Publish approved posts to Telegram
+    python scripts/run_pipeline.py --clear-queue   # Wipe all old items from queue
 """
 
+import os
 import sys
 import argparse
 from pathlib import Path
@@ -32,6 +34,26 @@ from publish_telegram import publish_approved_content
 
 CREDENTIALS_FILE = "telegram-ai-pipeline-85177bbe5835.json"
 SPREADSHEET_ID = "1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE"
+
+
+def clear_content_queue(credentials_path: str, spreadsheet_id: str):
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+
+    print(f"\n[+] Connecting to Google Sheets to clear Content_Queue...")
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = service_account.Credentials.from_service_account_file(
+        credentials_path, scopes=scopes
+    )
+    service = build("sheets", "v4", credentials=creds)
+
+    # Clear everything below header row (row 2 onwards)
+    service.spreadsheets().values().clear(
+        spreadsheetId=spreadsheet_id,
+        range="'Content_Queue'!A2:M"
+    ).execute()
+
+    print("[SUCCESS] Cleared all old data from Content_Queue! Header row preserved.\n")
 
 
 def run_pipeline(do_ingest: bool, do_ai: bool, do_publish: bool):
@@ -71,8 +93,13 @@ def main():
     parser.add_argument("--ingest", action="store_true", help="Run RSS Ingestion only")
     parser.add_argument("--process-ai", action="store_true", help="Run AI Content Processing only")
     parser.add_argument("--publish", action="store_true", help="Publish approved content only")
+    parser.add_argument("--clear-queue", action="store_true", help="Wipe all old rows from Content_Queue in Sheet")
 
     args = parser.parse_args()
+
+    if args.clear_queue:
+        clear_content_queue(CREDENTIALS_FILE, SPREADSHEET_ID)
+        return
 
     if not any([args.all, args.ingest, args.process_ai, args.publish]):
         # Default to full run

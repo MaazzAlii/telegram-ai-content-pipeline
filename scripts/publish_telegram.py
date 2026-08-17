@@ -2,8 +2,8 @@
 Telegram Publisher for Telegram AI Content Pipeline.
 
 Reads APPROVED items from Content_Queue in Google Sheets, broadcasts the post
-to your Telegram channel via the Telegram Bot API, moves the record to
-Published_Archive, and updates Google Sheets status to PUBLISHED.
+to your Telegram channel via the Telegram Bot API, archives the record in
+Published_Archive, and updates or prunes the row in Content_Queue.
 
 Usage:
     python scripts/publish_telegram.py --sheet-id 1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE
@@ -69,7 +69,6 @@ def send_telegram_message(bot_token: str, chat_id: str, text: str) -> dict:
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8")
             if parse_mode == "Markdown":
-                print(f"  [!] Markdown parse warning: {err_body}. Retrying in plain text mode...")
                 continue
             return {"ok": False, "description": err_body}
         except Exception as e:
@@ -78,12 +77,13 @@ def send_telegram_message(bot_token: str, chat_id: str, text: str) -> dict:
     return {"ok": False, "description": "Unknown error sending message"}
 
 
-def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: int = 1):
+def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: int = 1, prune_published: bool = False):
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
 
     bot_token = load_env_var("TELEGRAM_BOT_TOKEN")
     channel_id = load_env_var("TELEGRAM_CHANNEL_ID")
+    auto_prune = load_env_var("AUTO_PRUNE_PUBLISHED", "true").lower() in ["true", "1", "yes"] or prune_published
 
     if not bot_token or not channel_id:
         print("\n[!] Note: TELEGRAM_BOT_TOKEN or TELEGRAM_CHANNEL_ID not set in .env.")
@@ -108,6 +108,7 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
 
     published_count = 0
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    rows_to_delete_indices = []
 
     for idx, row in enumerate(rows, start=2):
         if published_count >= limit:
@@ -167,7 +168,7 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
             else:
                 desc = tg_res.get("description", "Unknown error")
                 print(f"  [!] Telegram error: {desc}")
-                print("  💡 Tip: Make sure you added your bot as an Administrator with 'Post Messages' permission in your channel!")
+                print("  💡 Tip: Make sure your VPN is active and the bot is an Administrator in @maazzalii!")
 
     print(f"\n[SUMMARY] Successfully published {published_count} post(s) to Telegram!\n")
 
@@ -177,9 +178,10 @@ def main():
     parser.add_argument("--credentials", "-c", default="telegram-ai-pipeline-85177bbe5835.json")
     parser.add_argument("--sheet-id", "-s", default="1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE")
     parser.add_argument("--limit", type=int, default=1)
+    parser.add_argument("--prune", action="store_true", help="Prune published rows from Content_Queue")
 
     args = parser.parse_args()
-    publish_approved_content(args.credentials, args.sheet_id, args.limit)
+    publish_approved_content(args.credentials, args.sheet_id, args.limit, args.prune)
 
 
 if __name__ == "__main__":
