@@ -1,18 +1,12 @@
 """
-AI Content Processor with Multi-Key Rotation & Waterfall Fallback Router.
-
-Pipeline Routing Logic:
-  1. Primary Pool: Cycles through all provided Gemini API Keys (auto-switches on 429 quota/rate limit).
-  2. Fallback Tier 1: Mistral AI API (if all Gemini keys are exhausted).
-  3. Fallback Tier 2: Groq Cloud Llama-3.3 (if Mistral fails or is exhausted).
-
-Usage:
-    python scripts/process_ai_content.py --sheet-id 1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE
+AI Content Processor with Multi-Key Rotation, Waterfall Fallback Router,
+and Smart Post Formatter (Extracts clean Telegram post from AI JSON responses).
 """
 
 import os
 import sys
 import json
+import re
 import argparse
 import urllib.request
 import urllib.parse
@@ -22,8 +16,16 @@ from pathlib import Path
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
-ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+BASE_DIR = Path(__file__).resolve().parent.parent
+PROMPTS_DIR = BASE_DIR / "prompts"
+ENV_FILE = BASE_DIR / ".env"
+CREDENTIALS_FILE = "telegram-ai-pipeline-85177bbe5835.json"
+SPREADSHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE")
+
+# Auto-create credentials JSON from environment variable if running on Render/Cloud
+if not (BASE_DIR / CREDENTIALS_FILE).exists() and os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"):
+    with open(BASE_DIR / CREDENTIALS_FILE, "w", encoding="utf-8") as f:
+        f.write(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
 
 PROMPT_MAP = {
     "AI_TOOLS": "ai_tools.md",
@@ -31,6 +33,14 @@ PROMPT_MAP = {
     "CYBERSECURITY": "cybersecurity.md",
     "LEARNING_RESOURCES": "learning_resources.md",
     "TECH_DEVELOPMENT": "technology.md",
+}
+
+PILLAR_EMOJIS = {
+    "AI_TOOLS": "🛠️",
+    "AI_INDUSTRY_STARTUPS": "🚀",
+    "CYBERSECURITY": "🛡️",
+    "LEARNING_RESOURCES": "📚",
+    "TECH_DEVELOPMENT": "⚡",
 }
 
 
@@ -62,8 +72,90 @@ def load_prompt_template(pillar: str) -> str:
     return "You are an expert tech curator for Telegram. Summarize the following news concisely with emojis, key takeaways, and relevant hashtags."
 
 
+def clean_json_string(text: str) -> str:
+    """Extracts valid JSON object from LLM string if wrapped in markdown code blocks or extra text."""
+    text = text.strip()
+    # Remove markdown code block fences if present
+    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text)
+    
+    # Try to find the outermost { ... }
+    match = re.search(r"\{[\s\S]*\}", text)
+    if match:
+        return match.group(0)
+    return text
+
+
+def format_to_clean_telegram_post(raw_ai_text: str, fallback_title: str, source_url: str, pillar: str) -> str:
+    """
+    Parses JSON output from LLM and formats it into a clean, professional,
+    high-engagement Telegram message.
+    """
+    emoji = PILLAR_EMOJIS.get(pillar, "⚡")
+    json_candidate = clean_json_string(raw_ai_text)
+    
+    try:
+        data = json.loads(json_candidate)
+        headline = data.get("headline") or fallback_title
+        hook = data.get("hook", "").strip()
+        body = data.get("body", "").strip()
+        why_it_matters = data.get("why_it_matters", "").strip()
+        key_points = data.get("key_points", [])
+        hashtags = data.get("hashtags", [])
+
+        lines = []
+        # Header
+        lines.append(f"{emoji} *{headline}*\n")
+        
+        # Hook / Intro
+        if hook:
+            lines.append(f"{hook}\n")
+        
+        # If body is structured text, clean it up
+        if body and body != hook:
+            # If body already contains "What happened", use it cleanly
+            lines.append(f"{body}\n")
+        elif why_it_matters:
+            lines.append(f"*Why it matters:*\n{why_it_matters}\n")
+
+        # Key Takeaways
+        if key_points and isinstance(key_points, list):
+            # Check if key points are already in body
+            clean_points = [p.strip().lstrip("•-* ") for p in key_points if p.strip()]
+            if clean_points and not any(p in body for p in clean_points[:2]):
+                lines.append("*Key Takeaways:*")
+                for pt in clean_points[:4]:
+                    lines.append(f"• {pt}")
+                lines.append("")
+
+        # Source link
+        clean_url = data.get("source_url") or source_url
+        if clean_url:
+            lines.append(f"🔗 [Read Full Article]({clean_url})\n")
+
+        # Hashtags
+        if hashtags and isinstance(hashtags, list):
+            tag_str = " ".join([f"#{t.replace(' ', '').replace('-', '')}" for t in hashtags if t])
+            if tag_str:
+                lines.append(tag_str)
+        elif pillar:
+            lines.append(f"#{pillar.replace('_', '')} #TechNews #AI")
+
+        formatted_post = "\n".join(lines).strip()
+        return formatted_post
+
+    except Exception:
+        # If not valid JSON, clean up any code artifacts and return clean text
+        clean_text = raw_ai_text.strip()
+        clean_text = re.sub(r"^```(?:json)?", "", clean_text)
+        clean_text = re.sub(r"```$", "", clean_text)
+        # Ensure source url is included
+        if source_url and source_url not in clean_text:
+            clean_text += f"\n\n🔗 [Source]({source_url})"
+        return clean_text
+
+
 def generate_with_gemini_key(api_key: str, system_prompt: str, content: str) -> str:
-    # Use latest Google Gemini 2.5 Flash
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     payload = {
         "contents": [
@@ -153,51 +245,65 @@ def generate_with_groq(api_key: str, system_prompt: str, content: str) -> str:
     return ""
 
 
-def generate_ai_post(system_prompt: str, content: str) -> tuple:
+def generate_ai_post(system_prompt: str, content: str, title: str, url: str, pillar: str) -> tuple:
     gemini_keys = get_gemini_keys()
     mistral_key = load_env_var("MISTRAL_API_KEY")
     groq_key = load_env_var("GROQ_API_KEY")
+
+    raw_output = ""
+    provider_name = "None"
 
     # 1. Try Gemini Keys in order
     for idx, key in enumerate(gemini_keys, start=1):
         try:
             print(f"    [AI Router] Attempting Gemini Key #{idx} ({key[:8]}...)...")
-            post = generate_with_gemini_key(key, system_prompt, content)
-            if post:
-                return post, f"Gemini Key #{idx}"
+            raw_output = generate_with_gemini_key(key, system_prompt, content)
+            if raw_output:
+                provider_name = f"Gemini Key #{idx}"
+                break
         except Exception as e:
             print(f"    [AI Router] Gemini Key #{idx} failed / rate-limited: {e}")
 
     # 2. Fallback to Mistral AI
-    if mistral_key:
+    if not raw_output and mistral_key:
         try:
             print(f"    [AI Router] ⚠️ All Gemini keys exhausted. Falling back to Mistral AI...")
-            post = generate_with_mistral(mistral_key, system_prompt, content)
-            if post:
-                return post, "Mistral AI"
+            raw_output = generate_with_mistral(mistral_key, system_prompt, content)
+            if raw_output:
+                provider_name = "Mistral AI"
         except Exception as e:
             print(f"    [AI Router] Mistral fallback failed: {e}")
 
     # 3. Fallback to Groq Cloud
-    if groq_key:
+    if not raw_output and groq_key:
         try:
             print(f"    [AI Router] ⚠️ Mistral failed. Falling back to Groq Llama-3.3...")
-            post = generate_with_groq(groq_key, system_prompt, content)
-            if post:
-                return post, "Groq Cloud"
+            raw_output = generate_with_groq(groq_key, system_prompt, content)
+            if raw_output:
+                provider_name = "Groq Cloud"
         except Exception as e:
             print(f"    [AI Router] Groq fallback failed: {e}")
 
-    return "", "None"
+    if not raw_output:
+        return "", "None"
+
+    # Format into beautiful clean Telegram post
+    formatted_post = format_to_clean_telegram_post(raw_output, title, url, pillar)
+    return formatted_post, provider_name
 
 
 def process_queue(credentials_path: str, spreadsheet_id: str, limit: int = 10):
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
 
+    creds_file_path = BASE_DIR / credentials_path
+    if not creds_file_path.exists():
+        print(f"[!] Credentials file not found: {creds_file_path}")
+        return
+
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     creds = service_account.Credentials.from_service_account_file(
-        credentials_path, scopes=scopes
+        str(creds_file_path), scopes=scopes
     )
     service = build("sheets", "v4", credentials=creds)
 
@@ -229,7 +335,7 @@ def process_queue(credentials_path: str, spreadsheet_id: str, limit: int = 10):
             prompt_template = load_prompt_template(pillar)
             combined_content = f"Title: {title}\nURL: {url}\nSummary/Context: {raw_text}"
             
-            ai_post, provider = generate_ai_post(prompt_template, combined_content)
+            ai_post, provider = generate_ai_post(prompt_template, combined_content, title, url, pillar)
             if ai_post:
                 # Update status to APPROVED, ai_summary, telegram_post_text
                 service.spreadsheets().values().update(
@@ -240,7 +346,7 @@ def process_queue(credentials_path: str, spreadsheet_id: str, limit: int = 10):
                         "values": [[raw_text[:250], ai_post, "APPROVED"]]
                     }
                 ).execute()
-                print(f"  [OK] Generated high-engagement post using {provider}! Updated row {idx} to APPROVED.")
+                print(f"  [OK] Generated clean post using {provider}! Updated row {idx} to APPROVED.")
                 processed_count += 1
             else:
                 print(f"  [!] Failed generating AI post for row {idx} across all providers.")
@@ -248,13 +354,59 @@ def process_queue(credentials_path: str, spreadsheet_id: str, limit: int = 10):
     print(f"\n[SUCCESS] Successfully formatted {processed_count} items with AI!\n")
 
 
+def reformat_existing_approved_rows(credentials_path: str, spreadsheet_id: str):
+    """Re-formats any existing rows in Content_Queue that still have raw JSON in telegram_post_text."""
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+
+    creds_file_path = BASE_DIR / credentials_path
+    if not creds_file_path.exists():
+        return
+
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = service_account.Credentials.from_service_account_file(
+        str(creds_file_path), scopes=scopes
+    )
+    service = build("sheets", "v4", credentials=creds)
+
+    res = service.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id,
+        range="'Content_Queue'!A2:M"
+    ).execute()
+    rows = res.get("values", [])
+
+    updated = 0
+    for idx, row in enumerate(rows, start=2):
+        post_text = row[6] if len(row) > 6 else ""
+        if post_text and ('"headline":' in post_text or '"hook":' in post_text or post_text.strip().startswith("{")):
+            title = row[1] if len(row) > 1 else ""
+            url = row[2] if len(row) > 2 else ""
+            pillar = row[3] if len(row) > 3 else "TECH_DEVELOPMENT"
+            
+            clean_post = format_to_clean_telegram_post(post_text, title, url, pillar)
+            service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=f"'Content_Queue'!G{idx}",
+                valueInputOption="USER_ENTERED",
+                body={"values": [[clean_post]]}
+            ).execute()
+            updated += 1
+
+    if updated:
+        print(f"[SUCCESS] Cleaned and reformatted {updated} existing raw JSON posts in Google Sheets!")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Process pending items with AI waterfall router")
     parser.add_argument("--credentials", "-c", default="telegram-ai-pipeline-85177bbe5835.json")
     parser.add_argument("--sheet-id", "-s", default="1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE")
     parser.add_argument("--limit", type=int, default=5)
+    parser.add_argument("--reformat-existing", action="store_true", help="Reformat existing JSON rows")
 
     args = parser.parse_args()
+    
+    # Always clean any existing raw JSON rows first
+    reformat_existing_approved_rows(args.credentials, args.sheet_id)
     process_queue(args.credentials, args.sheet_id, args.limit)
 
 
