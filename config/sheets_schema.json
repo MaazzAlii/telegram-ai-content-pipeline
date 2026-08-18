@@ -16,10 +16,12 @@
         "created_at",
         "scheduled_at",
         "published_at",
-        "error_log"
+        "error_log",
+        "post_target"
       ],
       "validations": {
         "status": ["PENDING", "APPROVED", "REJECTED", "PUBLISHED", "FAILED"],
+        "post_target": ["BOTH", "CHANNEL_1", "CHANNEL_2"],
         "topic_pillar": [
           "AI_TOOLS",
           "AI_INDUSTRY_STARTUPS",
