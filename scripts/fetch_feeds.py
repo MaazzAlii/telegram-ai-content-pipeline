@@ -425,7 +425,8 @@ def fetch_by_keyword(keyword: str, pillar: str, credentials_path: str, spreadshe
             it["created_at"],
             "",  # scheduled_at
             "",  # published_at
-            ""   # error_log
+            "",  # error_log
+            "BOTH"  # post_target
         ])
 
     service.spreadsheets().values().append(
@@ -496,7 +497,8 @@ def ingest_to_sheets(credentials_path: str, spreadsheet_id: str, max_per_feed: i
             it["created_at"],
             "",  # scheduled_at
             "",  # published_at
-            ""   # error_log
+            "",  # error_log
+            "BOTH"  # post_target
         ])
 
     service.spreadsheets().values().append(
