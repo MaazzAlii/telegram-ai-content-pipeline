@@ -37,8 +37,8 @@ if not (BASE_DIR / CREDENTIALS_FILE).exists() and os.environ.get("GOOGLE_SERVICE
 LATEST_LOGS = ["Dashboard control center active. Auto-Pilot ready."]
 
 AUTOPILOT_CONFIG = {
-    "enabled": False,
-    "interval_hours": 6,  # 4 times/day max
+    "enabled": os.environ.get("AUTOPILOT_ENABLED", "true").lower() in ("true", "1", "yes"),
+    "interval_hours": int(os.environ.get("AUTOPILOT_INTERVAL_HOURS", 6)),  # 4 times/day max
     "max_posts_per_day": 3,
     "last_run_time": None
 }
