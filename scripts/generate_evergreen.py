@@ -168,7 +168,8 @@ def append_evergreen_to_sheet(post_data: dict, credentials_path: str, spreadshee
         now_iso,
         "",  # scheduled_at
         "",  # published_at
-        ""   # error_log
+        "",  # error_log
+        "BOTH"  # post_target
     ]
 
     service.spreadsheets().values().append(
