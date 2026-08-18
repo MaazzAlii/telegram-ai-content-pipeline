@@ -150,12 +150,12 @@ CATEGORY_LENGTH_BOUNDS = {
     "AI_INDUSTRY_STARTUPS": (300, 1800, 400, 2500),
     "AGENTIC_AI": (300, 1800, 400, 2500),
     "AI_AUTOMATION": (300, 1800, 400, 2500),
-    "AI_TOOLS": (200, 1200, 280, 2000),
-    "LEARNING_RESOURCES": (200, 1200, 280, 2000),
-    "AI_CAREER": (250, 2000, 350, 2800),
-    "TOP10_PROMPTS": (250, 2400, 350, 3200),
+    "AI_TOOLS": (200, 1500, 280, 2200),
+    "LEARNING_RESOURCES": (200, 2000, 280, 2800),
+    "AI_CAREER": (250, 2500, 350, 3200),
+    "TOP10_PROMPTS": (250, 4000, 350, 4800),
 }
-DEFAULT_LENGTH_BOUNDS = (250, 1800, 350, 2500)
+DEFAULT_LENGTH_BOUNDS = (250, 2000, 350, 2800)
 
 
 def validate_ai_response(raw_ai_text: str, fallback_title: str, source_url: str, pillar: str) -> tuple:
@@ -308,7 +308,7 @@ def generate_with_gemini_key(api_key: str, system_prompt: str, content: str) -> 
         ],
         "generationConfig": {
             "temperature": 0.7,
-            "maxOutputTokens": 1000
+            "maxOutputTokens": 3000
         }
     }
 
@@ -318,7 +318,7 @@ def generate_with_gemini_key(api_key: str, system_prompt: str, content: str) -> 
         headers={"Content-Type": "application/json"}
     )
 
-    with urllib.request.urlopen(req, timeout=20) as resp:
+    with urllib.request.urlopen(req, timeout=25) as resp:
         data = json.loads(resp.read().decode("utf-8"))
         candidates = data.get("candidates", [])
         if candidates:
@@ -337,7 +337,7 @@ def generate_with_mistral(api_key: str, system_prompt: str, content: str) -> str
             {"role": "user", "content": f"RAW ARTICLE CONTENT:\n{content}"}
         ],
         "temperature": 0.7,
-        "max_tokens": 1000
+        "max_tokens": 3000
     }
 
     req = urllib.request.Request(
@@ -349,7 +349,7 @@ def generate_with_mistral(api_key: str, system_prompt: str, content: str) -> str
         }
     )
 
-    with urllib.request.urlopen(req, timeout=20) as resp:
+    with urllib.request.urlopen(req, timeout=25) as resp:
         data = json.loads(resp.read().decode("utf-8"))
         choices = data.get("choices", [])
         if choices:
@@ -366,7 +366,7 @@ def generate_with_groq(api_key: str, system_prompt: str, content: str) -> str:
             {"role": "user", "content": f"RAW ARTICLE CONTENT:\n{content}"}
         ],
         "temperature": 0.7,
-        "max_tokens": 1000
+        "max_tokens": 3000
     }
 
     req = urllib.request.Request(
@@ -378,7 +378,7 @@ def generate_with_groq(api_key: str, system_prompt: str, content: str) -> str:
         }
     )
 
-    with urllib.request.urlopen(req, timeout=20) as resp:
+    with urllib.request.urlopen(req, timeout=25) as resp:
         data = json.loads(resp.read().decode("utf-8"))
         choices = data.get("choices", [])
         if choices:

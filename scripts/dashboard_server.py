@@ -58,6 +58,8 @@ def run_pipeline_action_async(action: str):
             cmd.append("--all")
         elif action == "ingest":
             cmd.append("--ingest")
+        elif action == "evergreen":
+            cmd.append("--evergreen")
         elif action == "process-ai":
             cmd.append("--process-ai")
         elif action == "publish":
@@ -421,6 +423,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 add_log(f"[TOPIC SUCCESS] Added {res.get('added', 0)} new articles for '{keyword}' to queue!")
             else:
                 add_log(f"[TOPIC ERROR] {res.get('error')}")
+            self._send_json(res)
+            return
+
+        if parsed.path == "/api/generate-evergreen":
+            pillar = payload.get("pillar", "TOP10_PROMPTS")
+            topic = payload.get("topic", None)
+            from generate_evergreen import generate_single_evergreen_post, append_evergreen_to_sheet
+            add_log(f"\n[EVERGREEN QUEUE] Generating original content for [{pillar}]...")
+            res = generate_single_evergreen_post(pillar, custom_topic=topic)
+            if res.get("ok"):
+                append_evergreen_to_sheet(res, str(BASE_DIR / CREDENTIALS_FILE), SPREADSHEET_ID, status="APPROVED")
+                add_log(f"[EVERGREEN SUCCESS] Generated and approved original post: '{res.get('topic')}'")
+            else:
+                add_log(f"[EVERGREEN ERROR] {res.get('error')}")
             self._send_json(res)
             return
 

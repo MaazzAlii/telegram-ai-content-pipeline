@@ -32,6 +32,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from fetch_feeds import ingest_to_sheets
 from process_ai_content import process_queue
 from publish_telegram import publish_approved_content
+from generate_evergreen import generate_single_evergreen_post, append_evergreen_to_sheet
 
 CREDENTIALS_FILE = "telegram-ai-pipeline-85177bbe5835.json"
 SPREADSHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE")
@@ -62,7 +63,7 @@ def clear_content_queue(credentials_path: str, spreadsheet_id: str):
     print("[SUCCESS] Cleared all old data from Content_Queue! Header row preserved.\n")
 
 
-def run_pipeline(do_ingest: bool, do_ai: bool, do_publish: bool):
+def run_pipeline(do_ingest: bool, do_ai: bool, do_publish: bool, do_evergreen: bool = False):
     print("=" * 70)
     print("🚀 Telegram AI Content Pipeline — Automated Execution")
     print("=" * 70)
@@ -74,8 +75,18 @@ def run_pipeline(do_ingest: bool, do_ai: bool, do_publish: bool):
         except Exception as e:
             print(f"[!] Ingestion Error: {e}")
 
+    if do_evergreen:
+        print("\n[STEP 2-A] 🌟 EVERGREEN TOPIC QUEUE: Generating original prompt & career content...")
+        try:
+            for pillar in ["TOP10_PROMPTS", "AI_CAREER"]:
+                res = generate_single_evergreen_post(pillar)
+                if res.get("ok"):
+                    append_evergreen_to_sheet(res, CREDENTIALS_FILE, SPREADSHEET_ID, status="APPROVED")
+        except Exception as e:
+            print(f"[!] Evergreen Generation Error: {e}")
+
     if do_ai:
-        print("\n[STEP 2] 🧠 AI PROCESSING: Generating Telegram posts with Gemini...")
+        print("\n[STEP 2-B] 🧠 AI PROCESSING: Generating Telegram posts with Gemini...")
         try:
             process_queue(CREDENTIALS_FILE, SPREADSHEET_ID, limit=5)
         except Exception as e:
@@ -95,8 +106,9 @@ def run_pipeline(do_ingest: bool, do_ai: bool, do_publish: bool):
 
 def main():
     parser = argparse.ArgumentParser(description="Run Telegram AI Content Pipeline")
-    parser.add_argument("--all", action="store_true", help="Run full cycle (Ingest -> AI -> Publish)")
+    parser.add_argument("--all", action="store_true", help="Run full cycle (Ingest -> Evergreen -> AI -> Publish)")
     parser.add_argument("--ingest", action="store_true", help="Run RSS Ingestion only")
+    parser.add_argument("--evergreen", action="store_true", help="Generate original Evergreen content only")
     parser.add_argument("--process-ai", action="store_true", help="Run AI Content Processing only")
     parser.add_argument("--publish", action="store_true", help="Publish approved content only")
     parser.add_argument("--clear-queue", action="store_true", help="Wipe all old rows from Content_Queue in Sheet")
@@ -107,14 +119,15 @@ def main():
         clear_content_queue(CREDENTIALS_FILE, SPREADSHEET_ID)
         return
 
-    if not any([args.all, args.ingest, args.process_ai, args.publish]):
+    if not any([args.all, args.ingest, args.evergreen, args.process_ai, args.publish]):
         # Default to full run
-        run_pipeline(do_ingest=True, do_ai=True, do_publish=True)
+        run_pipeline(do_ingest=True, do_ai=True, do_publish=True, do_evergreen=True)
     else:
         run_pipeline(
             do_ingest=args.all or args.ingest,
             do_ai=args.all or args.process_ai,
-            do_publish=args.all or args.publish
+            do_publish=args.all or args.publish,
+            do_evergreen=args.all or args.evergreen
         )
 
 
