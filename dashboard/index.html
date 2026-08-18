@@ -1260,6 +1260,13 @@
       const indices = Array.from(selectedRowIndices);
       if (indices.length === 0) return;
 
+      // Validate all items have post text
+      const invalidItems = indices.map(rIdx => queueItems.find(it => it.row_index === rIdx)).filter(it => !it || !it.telegram_post_text || it.telegram_post_text.trim() === '');
+      if (invalidItems.length > 0) {
+        alert(`Cannot broadcast batch: ${invalidItems.length} selected post(s) do not have drafted AI text. Please run AI formatting or draft text first.`);
+        return;
+      }
+
       if (!confirm(`Are you sure you want to broadcast all ${indices.length} selected post(s) to Telegram?`)) return;
 
       showToast(`Broadcasting ${indices.length} posts to Telegram...`);
@@ -1271,7 +1278,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               row_index: item.row_index,
-              text: item.telegram_post_text || item.source_title,
+              text: item.telegram_post_text,
               source_url: item.source_url,
               topic_pillar: item.topic_pillar,
               id: item.id,
@@ -1327,19 +1334,11 @@
       currentEditingRow = item;
       document.getElementById('modal-row-tag').innerText = `Row #${rowIndex} [${item.topic_pillar || 'TECH'}]`;
 
-      // Load post text
-      let initialText = item.telegram_post_text;
-      if (!initialText || initialText.trim() === '') {
-        const cleanTitle = (item.source_title || 'Exciting AI Update').replace(/[^\w\s-.,!?]/gi, '');
-        initialText = `🔥 *${cleanTitle}*\n\n` +
-          `💡 Here is the latest breakdown on this AI tool/technology:\n\n` +
-          `• Key feature 1: High performance and automation.\n` +
-          `• Key feature 2: Designed for rapid productivity.\n\n` +
-          `🔗 Read more / Access: ${item.source_url || 'https://t.me/maazzalii'}\n\n` +
-          `#AI #ArtificialIntelligence #TechUpdates`;
-      }
+      // Load post text (never populate with generic boilerplate)
+      const initialText = item.telegram_post_text || '';
 
       document.getElementById('modal-edit-text').value = initialText;
+      document.getElementById('modal-edit-text').placeholder = initialText ? '' : 'No AI content formatted yet. Run Process AI or write your post draft here before approving.';
       document.getElementById('ref-link-input').value = '';
       
       // Load Image
@@ -1395,8 +1394,13 @@
       const newText = document.getElementById('modal-edit-text').value;
       const newImg = document.getElementById('modal-img-input').value.trim();
 
+      if (!newText || newText.trim().length < 50) {
+        alert("Post text cannot be empty or under 50 characters to approve.");
+        return;
+      }
+
       showToast("Saving changes to Google Sheet...");
-      await fetch('/api/update-post', {
+      const res = await fetch('/api/update-post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1406,6 +1410,11 @@
           image_url: newImg
         })
       });
+      const data = await res.json();
+      if (!data.ok) {
+        alert("Update failed: " + (data.error || "Validation check failed."));
+        return;
+      }
 
       closeModal();
       showToast("Changes saved successfully!");
@@ -1416,53 +1425,53 @@
       if (!currentEditingRow) return;
       const newText = document.getElementById('modal-edit-text').value;
       const newImg = document.getElementById('modal-img-input').value.trim();
-      const btn = document.getElementById('modal-publish-btn');
-      btn.disabled = true;
-      btn.innerText = 'Publishing...';
-
-      // 1. Save
-      await fetch('/api/update-post', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          row_index: currentEditingRow.row_index,
-          text: newText,
-          status: 'APPROVED',
-          image_url: newImg
-        })
-      });
-
-      // 2. Publish
-      const res = await fetch('/api/publish-single', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          row_index: currentEditingRow.row_index,
-          text: newText,
-          source_url: currentEditingRow.source_url,
-          topic_pillar: currentEditingRow.topic_pillar,
-          id: currentEditingRow.id,
-          image_url: newImg
-        })
-      });
-      const data = await res.json();
-
-      btn.disabled = false;
-      btn.innerText = '🚀 Publish Now';
-      closeModal();
-
-      if (data.ok) {
-        showToast("Successfully posted to Telegram!");
-      } else {
-        alert("Broadcast failed: " + (data.error || "Network error"));
+      
+      if (!newText || newText.trim().length < 50) {
+        alert("Cannot publish post: post text is empty or too short.");
+        return;
       }
 
-      fetchStatus();
+      const btn = document.getElementById('modal-publish-btn');
+      btn.disabled = true;
+      btn.innerText = "⏳ Publishing...";
+
+      try {
+        const res = await fetch('/api/publish-single', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            row_index: currentEditingRow.row_index,
+            text: newText,
+            source_url: currentEditingRow.source_url,
+            topic_pillar: currentEditingRow.topic_pillar,
+            id: currentEditingRow.id,
+            image_url: newImg
+          })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast("Live broadcast sent to Telegram!");
+          closeModal();
+          fetchStatus();
+        } else {
+          alert("Publish failed: " + (data.error || "Unknown error"));
+        }
+      } catch (e) {
+        alert("Network error publishing post: " + e);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "🚀 Broadcast Live to Telegram";
+      }
     }
 
     async function publishSingle(rowIndex) {
       const item = queueItems.find(it => it.row_index === rowIndex);
       if (!item) return;
+
+      if (!item.telegram_post_text || item.telegram_post_text.trim() === '') {
+        alert(`Cannot broadcast Row #${rowIndex}: No formatted post text. Please run AI formatting or edit the post first.`);
+        return;
+      }
 
       const btn = document.getElementById(`btn-post-${rowIndex}`);
       if (btn) {
@@ -1477,7 +1486,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           row_index: item.row_index,
-          text: item.telegram_post_text || item.source_title,
+          text: item.telegram_post_text,
           source_url: item.source_url,
           topic_pillar: item.topic_pillar,
           id: item.id,
