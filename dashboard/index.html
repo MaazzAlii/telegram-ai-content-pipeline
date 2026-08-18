@@ -814,6 +814,9 @@
           <button class="btn btn-secondary" onclick="triggerAction('publish')">
             📢 Publish Next Approved
           </button>
+          <button class="btn btn-secondary" onclick="triggerSendDigest()">
+            📊 Send Daily Digest
+          </button>
           <button class="btn btn-danger" onclick="triggerAction('clear-queue')">
             🧹 Clear Queue
           </button>
@@ -895,13 +898,14 @@
                 <th style="width: 28px;"><input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)"></th>
                 <th>Article / Post Content</th>
                 <th>Category</th>
+                <th>Target</th>
                 <th>Status</th>
                 <th style="text-align: right;">Action Controls</th>
               </tr>
             </thead>
             <tbody id="queue-tbody">
               <tr>
-                <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading sheet items...</td>
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading sheet items...</td>
               </tr>
             </tbody>
           </table>
@@ -940,6 +944,18 @@
             <button class="btn btn-secondary btn-row" onclick="updateModalImagePreview()">👁️ Preview</button>
           </div>
         </div>
+      </div>
+
+      <!-- Post Target Selector -->
+      <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); padding: 0.6rem 0.8rem; border-radius: 10px;">
+        <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-cyan); display: flex; align-items: center; gap: 0.4rem;">
+          🎯 Channel Target:
+        </span>
+        <select id="modal-target-select" class="filter-select" style="min-width: 220px;">
+          <option value="BOTH">🌐 BOTH Channels (All Subscribers)</option>
+          <option value="CHANNEL_1">📢 CHANNEL_1 Only (Primary)</option>
+          <option value="CHANNEL_2">📣 CHANNEL_2 Only (Secondary)</option>
+        </select>
       </div>
 
       <!-- Referral Link Insertion Bar -->
@@ -1221,6 +1237,11 @@
               </div>
             </td>
             <td><span class="pillar-tag">${escapeHtml(it.topic_pillar || 'GENERAL')}</span></td>
+            <td>
+              <span class="pillar-tag" style="background: rgba(0, 242, 254, 0.08); color: var(--accent-cyan); font-weight: 700;">
+                ${it.post_target === 'CHANNEL_1' ? '📢 CH 1' : it.post_target === 'CHANNEL_2' ? '📣 CH 2' : '🌐 BOTH'}
+              </span>
+            </td>
             <td><span class="status-pill status-${it.status}">${it.status}</span></td>
             <td style="text-align: right;">
               <div style="display: inline-flex; gap: 0.3rem; flex-wrap: wrap; justify-content: flex-end;">
@@ -1309,7 +1330,8 @@
               source_url: item.source_url,
               topic_pillar: item.topic_pillar,
               id: item.id,
-              image_url: item.image_url || ''
+              image_url: item.image_url || '',
+              post_target: item.post_target || 'BOTH'
             })
           });
         }
@@ -1373,6 +1395,12 @@
       imgInput.value = item.image_url || '';
       updateModalImagePreview();
 
+      // Load Post Target
+      const targetSelect = document.getElementById('modal-target-select');
+      if (targetSelect) {
+        targetSelect.value = item.post_target || 'BOTH';
+      }
+
       document.getElementById('edit-modal').classList.add('open');
     }
 
@@ -1420,6 +1448,7 @@
       if (!currentEditingRow) return;
       const newText = document.getElementById('modal-edit-text').value;
       const newImg = document.getElementById('modal-img-input').value.trim();
+      const newTarget = document.getElementById('modal-target-select') ? document.getElementById('modal-target-select').value : 'BOTH';
 
       if (!newText || newText.trim().length < 50) {
         alert("Post text cannot be empty or under 50 characters to approve.");
@@ -1434,7 +1463,8 @@
           row_index: currentEditingRow.row_index,
           text: newText,
           status: 'APPROVED',
-          image_url: newImg
+          image_url: newImg,
+          post_target: newTarget
         })
       });
       const data = await res.json();
@@ -1452,6 +1482,7 @@
       if (!currentEditingRow) return;
       const newText = document.getElementById('modal-edit-text').value;
       const newImg = document.getElementById('modal-img-input').value.trim();
+      const targetVal = document.getElementById('modal-target-select') ? document.getElementById('modal-target-select').value : 'BOTH';
       
       if (!newText || newText.trim().length < 50) {
         alert("Cannot publish post: post text is empty or too short.");
@@ -1472,7 +1503,8 @@
             source_url: currentEditingRow.source_url,
             topic_pillar: currentEditingRow.topic_pillar,
             id: currentEditingRow.id,
-            image_url: newImg
+            image_url: newImg,
+            post_target: targetVal
           })
         });
         const data = await res.json();
@@ -1517,7 +1549,8 @@
           source_url: item.source_url,
           topic_pillar: item.topic_pillar,
           id: item.id,
-          image_url: item.image_url || ''
+          image_url: item.image_url || '',
+          post_target: item.post_target || 'BOTH'
         })
       });
       const data = await res.json();
@@ -1534,6 +1567,21 @@
       }
 
       fetchStatus();
+    }
+
+    async function triggerSendDigest() {
+      showToast("Generating and delivering Daily DM Digest...");
+      try {
+        const res = await fetch('/api/send-digest', { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+          showToast("Daily DM Digest sent to Admin Telegram!");
+        } else {
+          showToast("Daily Digest: " + (data.error || "Generated locally"), false);
+        }
+      } catch (e) {
+        showToast("Failed to dispatch digest: " + e, false);
+      }
     }
 
     function closeModal() {
