@@ -214,14 +214,27 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
             ).execute()
             continue
 
-        if not post_text:
+        if not post_text or not post_text.strip():
+            print(f"  [!] Row {idx} (\"{title[:40]}\") has empty post text. Skipping broadcast.")
             continue
 
-        # FIX 1 & 4: Ensure content is clean and validated
+        # Strict validation gate check
         is_valid, err_reason, clean_broadcast_text, _ = validate_ai_response(post_text, title, source_url, pillar)
         if not is_valid:
-            # Reformat fallback
-            clean_broadcast_text = format_to_clean_telegram_post(post_text, title, source_url, pillar)
+            print(f"  [!] ❌ Row {idx} (\"{title[:40]}\") failed validation gate: {err_reason}. Rejecting row.")
+            service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=f"'Content_Queue'!H{idx}",
+                valueInputOption="USER_ENTERED",
+                body={"values": [["REJECTED_VALIDATION"]]}
+            ).execute()
+            service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=f"'Content_Queue'!M{idx}",
+                valueInputOption="USER_ENTERED",
+                body={"values": [[f"Publish Validation Failed: {err_reason}"]]}
+            ).execute()
+            continue
 
         # Check if an image URL is attached
         raw_content = row[4] if len(row) > 4 else ""

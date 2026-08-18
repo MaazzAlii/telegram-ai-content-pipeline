@@ -161,10 +161,31 @@ def fetch_sheet_queue() -> dict:
         return {"error": str(e), "items": [], "total": 0, "pending": 0, "approved": 0, "published": 0, "rejected": 0, "autopilot": AUTOPILOT_CONFIG}
 
 
-def set_single_post_status(row_index: int, new_status: str) -> bool:
-    """Instantly set post status to APPROVED, REJECTED, or PENDING."""
+def set_single_post_status(row_index: int, new_status: str) -> tuple:
+    """Set post status. Enforces validation gate if status is APPROVED."""
     try:
         service = get_sheets_service()
+        if new_status == "APPROVED":
+            from process_ai_content import validate_ai_response
+            res = service.spreadsheets().values().get(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"'Content_Queue'!A{row_index}:M{row_index}"
+            ).execute()
+            row = res.get("values", [[]])[0]
+            title = row[1] if len(row) > 1 else ""
+            url = row[2] if len(row) > 2 else ""
+            pillar = row[3] if len(row) > 3 else "TECH_DEVELOPMENT"
+            post_text = row[6] if len(row) > 6 else ""
+
+            if not post_text or not post_text.strip():
+                add_log(f"[VALIDATION REJECTED] Row #{row_index} cannot be approved: Post text is empty. Run AI processing first.")
+                return False, "Cannot approve empty post. Please run AI processing or edit post text first."
+
+            is_valid, err_reason, clean_text, _ = validate_ai_response(post_text, title, url, pillar)
+            if not is_valid:
+                add_log(f"[VALIDATION REJECTED] Row #{row_index} approval blocked: {err_reason}")
+                return False, f"Validation check failed: {err_reason}"
+
         service.spreadsheets().values().update(
             spreadsheetId=SPREADSHEET_ID,
             range=f"'Content_Queue'!H{row_index}",
@@ -172,15 +193,32 @@ def set_single_post_status(row_index: int, new_status: str) -> bool:
             body={"values": [[new_status]]}
         ).execute()
         add_log(f"[STATUS UPDATE] Row #{row_index} status updated to: {new_status}")
-        return True
+        return True, "OK"
     except Exception as e:
         add_log(f"[STATUS UPDATE ERROR] Row #{row_index}: {e}")
-        return False
+        return False, str(e)
 
 
-def update_single_post(row_index: int, new_text: str, new_status: str = "APPROVED", new_image_url: str = "") -> bool:
+def update_single_post(row_index: int, new_text: str, new_status: str = "APPROVED", new_image_url: str = "") -> tuple:
     try:
         service = get_sheets_service()
+        if new_status == "APPROVED":
+            from process_ai_content import validate_ai_response
+            res = service.spreadsheets().values().get(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"'Content_Queue'!A{row_index}:D{row_index}"
+            ).execute()
+            row = res.get("values", [[]])[0]
+            title = row[1] if len(row) > 1 else ""
+            url = row[2] if len(row) > 2 else ""
+            pillar = row[3] if len(row) > 3 else "TECH_DEVELOPMENT"
+
+            is_valid, err_reason, clean_text, _ = validate_ai_response(new_text, title, url, pillar)
+            if not is_valid:
+                add_log(f"[UPDATE REJECTED] Row #{row_index} post text failed validation: {err_reason}")
+                return False, f"Validation failed: {err_reason}"
+            new_text = clean_text
+
         # Update text (col G) and status (col H)
         service.spreadsheets().values().update(
             spreadsheetId=SPREADSHEET_ID,
@@ -207,14 +245,14 @@ def update_single_post(row_index: int, new_text: str, new_status: str = "APPROVE
             ).execute()
 
         add_log(f"[SHEET UPDATE] Row {row_index} updated & set to {new_status}")
-        return True
+        return True, "OK"
     except Exception as e:
         add_log(f"[SHEET UPDATE ERROR] {e}")
-        return False
+        return False, str(e)
 
 
 def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, pillar: str, post_id: str, image_url: str = ""):
-    from process_ai_content import format_to_clean_telegram_post
+    from process_ai_content import validate_ai_response, format_to_clean_telegram_post
     from publish_telegram import send_telegram_message, send_telegram_photo, load_env_var
     import datetime
     import re
@@ -239,8 +277,11 @@ def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, 
     except Exception as e:
         add_log(f"[WARN] Could not check current row status: {e}")
 
-    # Always sanitize raw text / JSON before sending
-    clean_text = format_to_clean_telegram_post(post_text, "", source_url, pillar)
+    # Enforce strict validation gate before broadcast
+    is_valid, err_reason, clean_text, _ = validate_ai_response(post_text, "", source_url, pillar)
+    if not is_valid:
+        add_log(f"[PUBLISH ABORTED] Row #{row_index} failed validation gate: {err_reason}")
+        return {"ok": False, "error": f"Cannot broadcast unvalidated post: {err_reason}"}
 
     # Check for image URL from argument or fetch from sheet
     if not image_url:
@@ -365,8 +406,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/set-status":
             row_idx = payload.get("row_index")
             new_status = payload.get("status", "APPROVED")
-            ok = set_single_post_status(row_idx, new_status)
-            self._send_json({"ok": ok, "row_index": row_idx, "status": new_status})
+            ok, msg = set_single_post_status(row_idx, new_status)
+            self._send_json({"ok": ok, "row_index": row_idx, "status": new_status, "error": msg if not ok else None})
             return
 
         if parsed.path == "/api/fetch-topic":
@@ -388,8 +429,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             new_text = payload.get("text", "")
             new_status = payload.get("status", "APPROVED")
             new_image_url = payload.get("image_url", "")
-            ok = update_single_post(row_idx, new_text, new_status, new_image_url)
-            self._send_json({"ok": ok})
+            ok, msg = update_single_post(row_idx, new_text, new_status, new_image_url)
+            self._send_json({"ok": ok, "error": msg if not ok else None})
             return
 
         if parsed.path == "/api/publish-single":
