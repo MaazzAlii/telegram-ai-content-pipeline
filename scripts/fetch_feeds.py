@@ -152,6 +152,41 @@ def extract_image_url(item_node, desc_text: str = "") -> str:
     return ""
 
 
+def resolve_canonical_url(url: str) -> str:
+    """
+    Resolves Google News redirect/wrapper URLs (news.google.com/rss/articles/... or news.google.com/read/...)
+    into the true canonical article source URL for accurate attribution and deduplication.
+    """
+    if not url:
+        return ""
+    
+    url = url.strip()
+    # Check if URL is a Google News wrapper
+    if "news.google.com" in url.lower():
+        try:
+            from googlenewsdecoder import gnewsdecoder
+            decoded = gnewsdecoder(url)
+            if isinstance(decoded, dict) and decoded.get("status") and decoded.get("decoded_url"):
+                canonical = decoded["decoded_url"].strip()
+                if canonical.startswith("http"):
+                    return canonical
+        except Exception:
+            pass
+
+        # Fallback: attempt HTTP GET redirect resolution
+        try:
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                final_url = resp.geturl()
+                if final_url and "news.google.com" not in final_url:
+                    return final_url
+        except Exception:
+            pass
+
+    return url
+
+
 import ssl
 
 def fetch_rss_entries(feed_url: str, pillar: str, trust_level: int = 2, max_items: int = 3) -> list:
@@ -200,6 +235,9 @@ def fetch_rss_entries(feed_url: str, pillar: str, trust_level: int = 2, max_item
                 # Discard off-topic article immediately
                 continue
 
+            # Resolve Google News redirect wrapper to canonical article URL (Bug C)
+            canonical_link = resolve_canonical_url(link)
+
             image_url = extract_image_url(item, raw_desc)
             # Prefix raw_text with image metadata if found
             content_text = f"[IMAGE: {image_url}]\n{clean_desc[:1000]}" if image_url else (clean_desc[:1000] if clean_desc else title)
@@ -207,7 +245,7 @@ def fetch_rss_entries(feed_url: str, pillar: str, trust_level: int = 2, max_item
             items.append({
                 "id": str(uuid.uuid4())[:8],
                 "source_title": title,
-                "source_url": link,
+                "source_url": canonical_link,
                 "topic_pillar": pillar,
                 "raw_text": content_text,
                 "image_url": image_url,
