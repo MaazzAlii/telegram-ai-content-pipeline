@@ -367,111 +367,131 @@ def autopilot_worker():
 
 
 class DashboardHandler(SimpleHTTPRequestHandler):
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
     def do_GET(self):
-        parsed = urllib.parse.urlparse(self.path)
+        try:
+            parsed = urllib.parse.urlparse(self.path)
 
-        if parsed.path == "/" or parsed.path == "/index.html":
-            self.path = "/dashboard/index.html"
+            if parsed.path == "/" or parsed.path == "/index.html":
+                index_path = DASHBOARD_DIR / "index.html"
+                if index_path.exists():
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    with open(index_path, "rb") as f:
+                        self.wfile.write(f.read())
+                    return
+                else:
+                    self.path = "/dashboard/index.html"
+                    return super().do_GET()
+
+            if parsed.path == "/api/status":
+                data = fetch_sheet_queue()
+                self._send_json(data)
+                return
+
+            if parsed.path == "/api/logs":
+                self._send_json({"logs": LATEST_LOGS})
+                return
+
             return super().do_GET()
-
-        if parsed.path == "/api/status":
-            data = fetch_sheet_queue()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(json.dumps(data).encode("utf-8"))
-            return
-
-        if parsed.path == "/api/logs":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(json.dumps({"logs": LATEST_LOGS}).encode("utf-8"))
-            return
-
-        return super().do_GET()
+        except Exception as e:
+            self._send_json({"error": str(e), "ok": False}, status_code=500)
 
     def do_POST(self):
-        parsed = urllib.parse.urlparse(self.path)
-        length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(length).decode("utf-8")
-        payload = json.loads(body) if body else {}
+        try:
+            parsed = urllib.parse.urlparse(self.path)
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length).decode("utf-8") if length > 0 else ""
+            payload = json.loads(body) if body else {}
 
-        if parsed.path == "/api/run":
-            action = payload.get("action", "all")
-            run_pipeline_action_async(action)
-            self._send_json({"status": "started", "action": action})
-            return
+            if parsed.path == "/api/run":
+                action = payload.get("action", "all")
+                run_pipeline_action_async(action)
+                self._send_json({"status": "started", "action": action, "ok": True})
+                return
 
-        if parsed.path == "/api/set-status":
-            row_idx = payload.get("row_index")
-            new_status = payload.get("status", "APPROVED")
-            ok, msg = set_single_post_status(row_idx, new_status)
-            self._send_json({"ok": ok, "row_index": row_idx, "status": new_status, "error": msg if not ok else None})
-            return
+            if parsed.path == "/api/set-status":
+                row_idx = payload.get("row_index")
+                new_status = payload.get("status", "APPROVED")
+                ok, msg = set_single_post_status(row_idx, new_status)
+                self._send_json({"ok": ok, "row_index": row_idx, "status": new_status, "error": msg if not ok else None})
+                return
 
-        if parsed.path == "/api/fetch-topic":
-            keyword = payload.get("keyword", "").strip()
-            pillar = payload.get("pillar", "AI_INDUSTRY_STARTUPS")
-            max_items = int(payload.get("max_items", 4))
-            from fetch_feeds import fetch_by_keyword
-            add_log(f"\n[TOPIC SEARCH] Searching live news for '{keyword}' [{pillar}]...")
-            res = fetch_by_keyword(keyword, pillar, str(BASE_DIR / CREDENTIALS_FILE), SPREADSHEET_ID, max_items=max_items)
-            if res.get("ok"):
-                add_log(f"[TOPIC SUCCESS] Added {res.get('added', 0)} new articles for '{keyword}' to queue!")
-            else:
-                add_log(f"[TOPIC ERROR] {res.get('error')}")
-            self._send_json(res)
-            return
+            if parsed.path == "/api/fetch-topic":
+                keyword = payload.get("keyword", "").strip()
+                pillar = payload.get("pillar", "AI_INDUSTRY_STARTUPS")
+                max_items = int(payload.get("max_items", 4))
+                from fetch_feeds import fetch_by_keyword
+                add_log(f"\n[TOPIC SEARCH] Searching live news for '{keyword}' [{pillar}]...")
+                res = fetch_by_keyword(keyword, pillar, str(BASE_DIR / CREDENTIALS_FILE), SPREADSHEET_ID, max_items=max_items)
+                if res.get("ok"):
+                    add_log(f"[TOPIC SUCCESS] Added {res.get('added', 0)} new articles for '{keyword}' to queue!")
+                else:
+                    add_log(f"[TOPIC ERROR] {res.get('error')}")
+                self._send_json(res)
+                return
 
-        if parsed.path == "/api/generate-evergreen":
-            pillar = payload.get("pillar", "TOP10_PROMPTS")
-            topic = payload.get("topic", None)
-            from generate_evergreen import generate_single_evergreen_post, append_evergreen_to_sheet
-            add_log(f"\n[EVERGREEN QUEUE] Generating original content for [{pillar}]...")
-            res = generate_single_evergreen_post(pillar, custom_topic=topic)
-            if res.get("ok"):
-                append_evergreen_to_sheet(res, str(BASE_DIR / CREDENTIALS_FILE), SPREADSHEET_ID, status="APPROVED")
-                add_log(f"[EVERGREEN SUCCESS] Generated and approved original post: '{res.get('topic')}'")
-            else:
-                add_log(f"[EVERGREEN ERROR] {res.get('error')}")
-            self._send_json(res)
-            return
+            if parsed.path == "/api/generate-evergreen":
+                pillar = payload.get("pillar", "TOP10_PROMPTS")
+                topic = payload.get("topic", None)
+                from generate_evergreen import generate_single_evergreen_post, append_evergreen_to_sheet
+                add_log(f"\n[EVERGREEN QUEUE] Generating original content for [{pillar}]...")
+                res = generate_single_evergreen_post(pillar, custom_topic=topic)
+                if res.get("ok"):
+                    append_evergreen_to_sheet(res, str(BASE_DIR / CREDENTIALS_FILE), SPREADSHEET_ID, status="APPROVED")
+                    add_log(f"[EVERGREEN SUCCESS] Generated and approved original post: '{res.get('topic')}'")
+                else:
+                    add_log(f"[EVERGREEN ERROR] {res.get('error')}")
+                self._send_json(res)
+                return
 
-        if parsed.path == "/api/update-post":
-            row_idx = payload.get("row_index")
-            new_text = payload.get("text", "")
-            new_status = payload.get("status", "APPROVED")
-            new_image_url = payload.get("image_url", "")
-            ok, msg = update_single_post(row_idx, new_text, new_status, new_image_url)
-            self._send_json({"ok": ok, "error": msg if not ok else None})
-            return
+            if parsed.path == "/api/update-post":
+                row_idx = payload.get("row_index")
+                new_text = payload.get("text", "")
+                new_status = payload.get("status", "APPROVED")
+                new_image_url = payload.get("image_url", "")
+                ok, msg = update_single_post(row_idx, new_text, new_status, new_image_url)
+                self._send_json({"ok": ok, "error": msg if not ok else None})
+                return
 
-        if parsed.path == "/api/publish-single":
-            row_idx = payload.get("row_index")
-            text = payload.get("text", "")
-            url = payload.get("source_url", "")
-            pillar = payload.get("topic_pillar", "TECH")
-            post_id = payload.get("id", "")
-            image_url = payload.get("image_url", "")
-            res = publish_single_post_by_row(row_idx, text, url, pillar, post_id, image_url)
-            self._send_json(res)
-            return
+            if parsed.path == "/api/publish-single":
+                row_idx = payload.get("row_index")
+                text = payload.get("text", "")
+                url = payload.get("source_url", "")
+                pillar = payload.get("topic_pillar", "TECH")
+                post_id = payload.get("id", "")
+                image_url = payload.get("image_url", "")
+                res = publish_single_post_by_row(row_idx, text, url, pillar, post_id, image_url)
+                self._send_json(res)
+                return
 
-        if parsed.path == "/api/toggle-autopilot":
-            enabled = payload.get("enabled", False)
-            hours = int(payload.get("interval_hours", 6))
-            AUTOPILOT_CONFIG["enabled"] = enabled
-            AUTOPILOT_CONFIG["interval_hours"] = hours
-            add_log(f"[CONFIG] Auto-Pilot Scheduler set to: {'ON' if enabled else 'OFF'} (Every {hours}h)")
-            self._send_json({"ok": True, "autopilot": AUTOPILOT_CONFIG})
-            return
+            if parsed.path == "/api/toggle-autopilot":
+                enabled = payload.get("enabled", False)
+                hours = int(payload.get("interval_hours", 6))
+                AUTOPILOT_CONFIG["enabled"] = enabled
+                AUTOPILOT_CONFIG["interval_hours"] = hours
+                add_log(f"[CONFIG] Auto-Pilot Scheduler set to: {'ON' if enabled else 'OFF'} (Every {hours}h)")
+                self._send_json({"ok": True, "autopilot": AUTOPILOT_CONFIG})
+                return
 
-    def _send_json(self, data: dict):
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
+            # Fallback 404 for unknown POST endpoints
+            self._send_json({"error": f"Unknown endpoint: {parsed.path}", "ok": False}, status_code=404)
+
+        except Exception as e:
+            add_log(f"[SERVER ERROR] {e}")
+            self._send_json({"error": str(e), "ok": False}, status_code=500)
+
+    def _send_json(self, data: dict, status_code: int = 200):
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(json.dumps(data).encode("utf-8"))
