@@ -186,7 +186,7 @@ def append_evergreen_to_sheet(post_data: dict, credentials_path: str, spreadshee
 
 def main():
     parser = argparse.ArgumentParser(description="Generate original evergreen content using Topic Queue")
-    parser.add_argument("--pillar", "-p", default="TOP10_PROMPTS", choices=["TOP10_PROMPTS", "AI_CAREER", "LEARNING_RESOURCES", "AGENTIC_AI", "AI_AUTOMATION", "all"], help="Category pillar")
+    parser.add_argument("--pillar", "-p", default="TOP10_PROMPTS", choices=["TOP10_PROMPTS", "AI_CAREER", "AGENTIC_AI", "AI_AUTOMATION", "all"], help="Category pillar")
     parser.add_argument("--topic", "-t", default=None, help="Optional custom topic override")
     parser.add_argument("--dry-run", action="store_true", help="Generate and print post without saving to Google Sheets")
     parser.add_argument("--status", default="APPROVED", choices=["APPROVED", "PENDING"], help="Queue status for new post")
@@ -195,7 +195,7 @@ def main():
 
     args = parser.parse_args()
 
-    pillars_to_run = [args.pillar] if args.pillar != "all" else ["TOP10_PROMPTS", "AI_CAREER", "LEARNING_RESOURCES"]
+    pillars_to_run = [args.pillar] if args.pillar != "all" else ["TOP10_PROMPTS", "AI_CAREER", "AGENTIC_AI", "AI_AUTOMATION"]
 
     print("\n" + "=" * 60)
     print("🌟 Evergreen Topic Queue — Original AI Content Engine")

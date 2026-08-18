@@ -1,5 +1,6 @@
 # Evergreen & Original Content Topics Queue for Telegram AI Content Pipeline
-# Rotating keyword list for autonomous original content generation without RSS dependencies.
+# Rotating keyword list for autonomous original content generation without external URL dependencies.
+# Note: URL-dependent categories (LEARNING_RESOURCES, AI_TOOLS, AI_NEWS) are handled via live feeds/search only.
 
 evergreen_topics:
   TOP10_PROMPTS:
@@ -23,9 +24,9 @@ evergreen_topics:
       notes: "Focus on microservices decomposition, rate limiting design, OpenAPI spec generation, and caching strategies."
 
   AI_CAREER:
-    - topic: "ChatGPT & Claude productivity workflows for developers"
-      subtopic: "Developer Productivity & Daily LLM Workflows"
-      notes: "Practical tricks to 5x coding output using system prompts, project files, and context window management."
+    - topic: "ChatGPT & Claude productivity workflows for students & developers"
+      subtopic: "Daily AI Workflows & Student Productivity"
+      notes: "Practical tricks to 5x study and coding output using system prompts, structured reasoning, and context window management."
     - topic: "AI Engineer portfolio project ideas with high market value"
       subtopic: "Portfolio Building & Project Selection"
       notes: "Focus on production RAG systems, evaluation harness, latency optimization, and multi-agent coordination."
@@ -39,24 +40,21 @@ evergreen_topics:
       subtopic: "Resume-grade AI Projects"
       notes: "Emphasize hybrid search (BM25 + Dense Vectors), reranking (Cohere), chunking strategies, and caching."
 
-  LEARNING_RESOURCES:
-    - topic: "Essential free resources to master Retrieval-Augmented Generation (RAG)"
-      notes: "Curate top open-source guides, LangChain docs, Pinecone learning center, and Chunking benchmarks."
-    - topic: "Top open-source frameworks and libraries to build Multi-Agent Systems"
-      notes: "Cover LangGraph, CrewAI, AutoGen, and LangChain Agent framework."
-    - topic: "Best GitHub repositories for fine-tuning LLMs with LoRA and QLoRA"
-      notes: "Cover Unsloth, Axolotl, Hugging Face TRL, and Llama-Factory."
-    - topic: "Interactive tutorials and guides for vector databases and embeddings"
-      notes: "Cover ChromaDB, Qdrant, Milvus, and OpenAI embedding guides."
-
   AGENTIC_AI:
     - topic: "Understanding Model Context Protocol (MCP) and Tool Calling"
+      audience: "AI Developers & System Architects"
       notes: "Explain how MCP standardizes tool connectivity between AI clients and external systems."
     - topic: "Autonomous Agent Architectures: ReAct vs Plan-and-Solve vs Reflection"
+      audience: "Software Engineers & AI Researchers"
       notes: "Break down core cognitive patterns for modern AI agents."
+    - topic: "Memory Management and State Persistence in Long-Running AI Agents"
+      audience: "AI Engineers"
+      notes: "Explain short-term vs long-term memory, vector store retrieval, and session pruning."
 
   AI_AUTOMATION:
-    - topic: "Top n8n automation workflows for AI developer productivity"
+    - topic: "Top automation workflows for AI developer productivity"
+      audience: "Automation Engineers & Developers"
       notes: "Showcase automated newsletter summarizers, GitHub issue triage bots, and automated RSS monitors."
     - topic: "Building self-healing automation pipelines with LLMs and webhooks"
+      audience: "DevOps & Pipeline Engineers"
       notes: "Error interception, dynamic retry prompts, and automated notification loops."
