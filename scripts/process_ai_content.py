@@ -142,98 +142,150 @@ def clean_json_string(text: str) -> str:
     return text
 
 
+# Category-specific length bounds: (min_body, max_body, min_total_post, max_total_post)
+CATEGORY_LENGTH_BOUNDS = {
+    "AI_NEWS": (300, 1800, 400, 2500),
+    "TECH_DEVELOPMENT": (300, 1800, 400, 2500),
+    "CYBERSECURITY": (300, 1800, 400, 2500),
+    "AI_INDUSTRY_STARTUPS": (300, 1800, 400, 2500),
+    "AGENTIC_AI": (300, 1800, 400, 2500),
+    "AI_AUTOMATION": (300, 1800, 400, 2500),
+    "AI_TOOLS": (200, 1200, 280, 2000),
+    "LEARNING_RESOURCES": (200, 1200, 280, 2000),
+    "AI_CAREER": (250, 2000, 350, 2800),
+    "TOP10_PROMPTS": (250, 2400, 350, 3200),
+}
+DEFAULT_LENGTH_BOUNDS = (250, 1800, 350, 2500)
+
+
 def validate_ai_response(raw_ai_text: str, fallback_title: str, source_url: str, pillar: str) -> tuple:
     """
-    FIX 1: Strict 5-stage validation gate.
+    Strict multi-stage validation gate enforcing content quality, min/max length bounds,
+    and structural integrity for both raw AI JSON output and manually edited/formatted posts.
     Returns: (is_valid: bool, error_reason: str, clean_formatted_post: str, parsed_json: dict)
     """
     if not raw_ai_text or not raw_ai_text.strip():
-        return False, "Empty response from AI router", "", {}
+        return False, "Empty response or text", "", {}
 
-    # Stage 1: JSON Parse Check
+    bounds = CATEGORY_LENGTH_BOUNDS.get(pillar, DEFAULT_LENGTH_BOUNDS)
+    min_body, max_body, min_total, max_total = bounds
+
+    # Check if text is JSON formatted
     json_candidate = clean_json_string(raw_ai_text)
+    is_json = False
+    data = {}
     try:
-        data = json.loads(json_candidate)
-        if not isinstance(data, dict):
-            return False, "JSON Parse Check Failed: Output root is not an object", "", {}
-    except Exception as e:
-        return False, f"JSON Parse Check Failed: {e}", "", {}
+        parsed = json.loads(json_candidate)
+        if isinstance(parsed, dict) and ("headline" in parsed or "body" in parsed):
+            data = parsed
+            is_json = True
+    except Exception:
+        is_json = False
 
-    # Stage 2: Required Fields Check
-    headline = sanitize_text(data.get("headline") or "")
-    body = sanitize_text(data.get("body") or "")
-    url = data.get("source_url") or data.get("url") or source_url or ""
-    category = data.get("category") or pillar
+    if is_json:
+        # JSON validation path
+        headline = sanitize_text(data.get("headline") or "")
+        body = sanitize_text(data.get("body") or "")
+        url = data.get("source_url") or data.get("url") or source_url or ""
+        category = data.get("category") or pillar
 
-    if not headline:
-        return False, "Required Fields Check Failed: 'headline' is missing or empty", "", {}
-    if not body:
-        return False, "Required Fields Check Failed: 'body' is missing or empty", "", {}
-    if not url:
-        return False, "Required Fields Check Failed: 'source_url' is missing or empty", "", {}
+        if not headline:
+            return False, "Required Fields Check Failed: 'headline' is missing or empty", "", {}
+        if not body:
+            return False, "Required Fields Check Failed: 'body' is missing or empty (zero body content)", "", {}
 
-    # Stage 3: Minimum Length Check (catches truncated JSON leaks)
-    if len(body) < 100:
-        return False, f"Minimum Length Check Failed: body length ({len(body)} chars) is under 100 char threshold", "", {}
+        # URL check: evergreen prompts/career posts can use fallback/channel, others require source url
+        if not url and pillar not in ("TOP10_PROMPTS", "AI_CAREER"):
+            return False, "Required Fields Check Failed: 'source_url' is missing or empty", "", {}
 
-    # Stage 4: Refusal / Out-of-Scope Phrase Check
-    combined_content = f"{headline} {body} {data.get('hook', '')} {data.get('why_it_matters', '')}".lower()
-    for refusal in REFUSAL_PHRASES:
-        if refusal in combined_content:
-            return False, f"Refusal/Out-of-Scope Check Failed: matches '{refusal}'", "", {}
+        # Refusal Check (stage 3)
+        combined_content = f"{headline} {body} {data.get('hook', '')} {data.get('why_it_matters', '')}".lower()
+        for refusal in REFUSAL_PHRASES:
+            if refusal in combined_content:
+                return False, f"Refusal/Out-of-Scope Check Failed: matches '{refusal}'", "", {}
 
-    # Stage 5: Duplicate Hashtag & Format Sanity Check (auto-clean)
-    emoji = PILLAR_EMOJIS.get(pillar, "⚡")
-    hook = sanitize_text(data.get("hook", ""))
-    why_it_matters = sanitize_text(data.get("why_it_matters", ""))
-    key_points = data.get("key_points", [])
-    hashtags = data.get("hashtags", [])
+        # Min & Max Body Length Check (stage 4)
+        body_len = len(body)
+        if body_len < min_body:
+            return False, f"Body Length Check Failed: body length ({body_len} chars) is under minimum threshold ({min_body} chars) for {pillar}", "", {}
+        if body_len > max_body:
+            return False, f"Body Length Check Failed: body length ({body_len} chars) exceeds maximum threshold ({max_body} chars) for {pillar}", "", {}
 
-    lines = []
-    # Clean single-line headline with emoji
-    lines.append(f"{emoji} *{headline}*\n")
+        # Build clean Telegram formatted post
+        emoji = PILLAR_EMOJIS.get(pillar, "⚡")
+        hook = sanitize_text(data.get("hook", ""))
+        why_it_matters = sanitize_text(data.get("why_it_matters", ""))
+        key_points = data.get("key_points", [])
+        hashtags = data.get("hashtags", [])
 
-    # Hook
-    if hook and hook != headline:
-        lines.append(f"{hook}\n")
+        lines = [f"{emoji} *{headline}*\n"]
 
-    # Clean body
-    if body and body != hook and body != headline:
-        # Strip duplicate "Key takeaways" header if present inside body
-        body_clean = re.sub(r"(?i)\*?Key takeaways\*?:\s*", "", body).strip()
-        lines.append(f"{body_clean}\n")
-    elif why_it_matters:
-        lines.append(f"*Why it matters:*\n{why_it_matters}\n")
+        if hook and hook != headline:
+            lines.append(f"{hook}\n")
 
-    # Key Takeaways (one section maximum)
-    if key_points and isinstance(key_points, list):
-        clean_points = [sanitize_text(p).lstrip("•-* ") for p in key_points if p and p.strip()]
-        clean_points = [p for p in clean_points if p and p != headline]
-        if clean_points and not any(p in body for p in clean_points[:2]):
-            lines.append("*Key Takeaways:*")
-            for pt in clean_points[:4]:
-                lines.append(f"• {pt}")
-            lines.append("")
+        if body and body != hook and body != headline:
+            body_clean = re.sub(r"(?i)\*?Key takeaways\*?:\s*", "", body).strip()
+            lines.append(f"{body_clean}\n")
+        elif why_it_matters:
+            lines.append(f"*Why it matters:*\n{why_it_matters}\n")
 
-    # Clean single URL link
-    lines.append(f"🔗 [Read Full Article]({url})\n")
+        if key_points and isinstance(key_points, list):
+            clean_points = [sanitize_text(p).lstrip("•-* ") for p in key_points if p and p.strip()]
+            clean_points = [p for p in clean_points if p and p != headline]
+            if clean_points and not any(p in body for p in clean_points[:2]):
+                lines.append("*Key Takeaways:*")
+                for pt in clean_points[:4]:
+                    lines.append(f"• {pt}")
+                lines.append("")
 
-    # Sanitize hashtags (ensure single '#', strip '##')
-    if hashtags and isinstance(hashtags, list):
-        clean_tags = []
-        for tag in hashtags:
-            if not tag:
-                continue
-            tag_str = str(tag).strip().lstrip("#").replace(" ", "").replace("-", "")
-            if tag_str:
-                clean_tags.append(f"#{tag_str}")
-        if clean_tags:
-            lines.append(" ".join(clean_tags))
+        if url:
+            lines.append(f"🔗 [Read Full Article]({url})\n")
+
+        if hashtags and isinstance(hashtags, list):
+            clean_tags = []
+            for tag in hashtags:
+                if not tag:
+                    continue
+                tag_str = str(tag).strip().lstrip("#").replace(" ", "").replace("-", "")
+                if tag_str:
+                    clean_tags.append(f"#{tag_str}")
+            if clean_tags:
+                lines.append(" ".join(clean_tags))
+        else:
+            lines.append(f"#{pillar.replace('_', '')} #TechNews #AI")
+
+        formatted_post = "\n".join(lines).strip()
+        total_len = len(formatted_post)
+        if total_len < min_total:
+            return False, f"Total Post Length ({total_len} chars) is below minimum {min_total} chars", "", {}
+        if total_len > max_total:
+            return False, f"Total Post Length ({total_len} chars) exceeds maximum {max_total} chars", "", {}
+
+        return True, "OK", formatted_post, data
+
     else:
-        lines.append(f"#{pillar.replace('_', '')} #TechNews #AI")
+        # Pre-formatted text path (e.g. manually edited or already assembled)
+        clean_text = sanitize_text(raw_ai_text)
+        total_len = len(clean_text)
 
-    formatted_post = "\n".join(lines).strip()
-    return True, "OK", formatted_post, data
+        # Refusal check
+        lower_text = clean_text.lower()
+        for refusal in REFUSAL_PHRASES:
+            if refusal in lower_text:
+                return False, f"Refusal/Out-of-Scope Check Failed: matches '{refusal}'", "", {}
+
+        # Must have sufficient body length (prevent empty body / title-only posts)
+        if total_len < min_total:
+            return False, f"Post text length ({total_len} chars) is below minimum {min_total} chars for {pillar}", "", {}
+        if total_len > max_total:
+            return False, f"Post text length ({total_len} chars) exceeds maximum {max_total} chars for {pillar}", "", {}
+
+        # Check that post is not just a link or single line
+        lines = [line.strip() for line in clean_text.splitlines() if line.strip()]
+        if len(lines) < 2:
+            return False, "Post format invalid: Post contains fewer than 2 distinct lines (missing body)", "", {}
+
+        return True, "OK", clean_text, {}
 
 
 def format_to_clean_telegram_post(raw_ai_text: str, fallback_title: str, source_url: str, pillar: str) -> str:
