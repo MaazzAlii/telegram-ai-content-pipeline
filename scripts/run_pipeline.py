@@ -33,6 +33,7 @@ from fetch_feeds import ingest_to_sheets
 from process_ai_content import process_queue
 from publish_telegram import publish_approved_content
 from generate_evergreen import generate_single_evergreen_post, append_evergreen_to_sheet
+from daily_digest import send_daily_digest
 
 CREDENTIALS_FILE = "telegram-ai-pipeline-85177bbe5835.json"
 SPREADSHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE")
@@ -111,12 +112,17 @@ def main():
     parser.add_argument("--evergreen", action="store_true", help="Generate original Evergreen content only")
     parser.add_argument("--process-ai", action="store_true", help="Run AI Content Processing only")
     parser.add_argument("--publish", action="store_true", help="Publish approved content only")
+    parser.add_argument("--daily-digest", action="store_true", help="Generate and send Daily Executive DM Digest")
     parser.add_argument("--clear-queue", action="store_true", help="Wipe all old rows from Content_Queue in Sheet")
 
     args = parser.parse_args()
 
     if args.clear_queue:
         clear_content_queue(CREDENTIALS_FILE, SPREADSHEET_ID)
+        return
+
+    if args.daily_digest:
+        send_daily_digest(CREDENTIALS_FILE, SPREADSHEET_ID)
         return
 
     if not any([args.all, args.ingest, args.evergreen, args.process_ai, args.publish]):
