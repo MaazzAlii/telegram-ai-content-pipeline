@@ -137,7 +137,7 @@ def fetch_sheet_queue() -> dict:
         service = get_sheets_service()
         res = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
-            range="'Content_Queue'!A2:M"
+            range="'Content_Queue'!A2:N"
         ).execute()
         rows = res.get("values", [])
 
@@ -161,6 +161,7 @@ def fetch_sheet_queue() -> dict:
             raw_txt = r[4] if len(r) > 4 else ""
             img_match = re.search(r'\[IMAGE:\s*([^\]]+)\]', raw_txt)
             image_url = img_match.group(1).strip() if img_match else ""
+            post_target = r[13].strip() if len(r) > 13 and r[13] else "BOTH"
 
             items.append({
                 "row_index": idx,
@@ -173,6 +174,7 @@ def fetch_sheet_queue() -> dict:
                 "ai_summary": r[5] if len(r) > 5 else "",
                 "telegram_post_text": r[6] if len(r) > 6 else "",
                 "status": status,
+                "post_target": post_target,
                 "created_at": r[9] if len(r) > 9 else ""
             })
 
@@ -227,7 +229,7 @@ def set_single_post_status(row_index: int, new_status: str) -> tuple:
         return False, str(e)
 
 
-def update_single_post(row_index: int, new_text: str, new_status: str = "APPROVED", new_image_url: str = "") -> tuple:
+def update_single_post(row_index: int, new_text: str, new_status: str = "APPROVED", new_image_url: str = "", new_target: str = "BOTH") -> tuple:
     try:
         service = get_sheets_service()
         if new_status == "APPROVED":
@@ -255,6 +257,17 @@ def update_single_post(row_index: int, new_text: str, new_status: str = "APPROVE
             body={"values": [[new_text, new_status]]}
         ).execute()
 
+        # Update post_target (col N)
+        target_val = (new_target or "BOTH").strip().upper()
+        if target_val not in ["BOTH", "CHANNEL_1", "CHANNEL_2"]:
+            target_val = "BOTH"
+        service.spreadsheets().values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"'Content_Queue'!N{row_index}",
+            valueInputOption="USER_ENTERED",
+            body={"values": [[target_val]]}
+        ).execute()
+
         # If image URL provided, update raw_text column E with [IMAGE: ...] tag
         if new_image_url:
             res = service.spreadsheets().values().get(
@@ -263,7 +276,7 @@ def update_single_post(row_index: int, new_text: str, new_status: str = "APPROVE
             ).execute()
             existing_raw = res.get("values", [[""]])[0][0] if res.get("values") else ""
             import re
-            cleaned_raw = re.sub(r'\[IMAGE:\s*[^\]]+\]\s*', '', existing_raw).strip()
+            cleaned_raw = re.sub(r'\[IMAGE:\s*([^\]]+)\]\s*', '', existing_raw).strip()
             updated_raw = f"[IMAGE: {new_image_url}]\n{cleaned_raw}"
             service.spreadsheets().values().update(
                 spreadsheetId=SPREADSHEET_ID,
@@ -272,23 +285,26 @@ def update_single_post(row_index: int, new_text: str, new_status: str = "APPROVE
                 body={"values": [[updated_raw]]}
             ).execute()
 
-        add_log(f"[SHEET UPDATE] Row {row_index} updated & set to {new_status}")
+        add_log(f"[SHEET UPDATE] Row {row_index} updated [Target: {target_val}] & set to {new_status}")
         return True, "OK"
     except Exception as e:
         add_log(f"[SHEET UPDATE ERROR] {e}")
         return False, str(e)
 
 
-def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, pillar: str, post_id: str, image_url: str = ""):
-    from process_ai_content import validate_ai_response, format_to_clean_telegram_post
-    from publish_telegram import send_telegram_message, send_telegram_photo, load_env_var
+def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, pillar: str, post_id: str, image_url: str = "", post_target: str = "BOTH"):
+    from process_ai_content import validate_ai_response
+    from publish_telegram import broadcast_to_target_channels, load_env_var
     import datetime
     import re
 
     bot_token = load_env_var("TELEGRAM_BOT_TOKEN")
-    channel_id = load_env_var("TELEGRAM_CHANNEL_ID")
+    channel_1_id = load_env_var("TELEGRAM_CHANNEL_1_ID") or load_env_var("TELEGRAM_CHANNEL_ID")
+    channel_2_id = load_env_var("TELEGRAM_CHANNEL_2_ID")
+    ch1_paused = load_env_var("CHANNEL_1_PAUSED", "false").lower() in ["true", "1", "yes"]
+    ch2_paused = load_env_var("CHANNEL_2_PAUSED", "false").lower() in ["true", "1", "yes"]
 
-    if not bot_token or not channel_id:
+    if not bot_token or not (channel_1_id or channel_2_id):
         return {"ok": False, "error": "Bot credentials missing in .env"}
 
     # Guard: check if already published
@@ -296,12 +312,14 @@ def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, 
     try:
         cur_row = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
-            range=f"'Content_Queue'!A{row_index}:M{row_index}"
+            range=f"'Content_Queue'!A{row_index}:N{row_index}"
         ).execute()
         vals = cur_row.get("values", [[]])[0]
         cur_status = vals[7] if len(vals) > 7 else ""
         if cur_status == "PUBLISHED":
             return {"ok": False, "error": "This post is already marked as PUBLISHED."}
+        if not post_target and len(vals) > 13 and vals[13]:
+            post_target = vals[13]
     except Exception as e:
         add_log(f"[WARN] Could not check current row status: {e}")
 
@@ -325,17 +343,25 @@ def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, 
         except Exception:
             pass
 
-    add_log(f"\n[SINGLE PUBLISH] Broadcasting row {row_index} to {channel_id}...")
+    add_log(f"\n[SINGLE PUBLISH] Broadcasting row {row_index} [Target: {post_target or 'BOTH'}]...")
     if image_url:
         add_log(f"  Attached image: {image_url}")
-        res = send_telegram_photo(bot_token, channel_id, image_url, clean_text)
-    else:
-        res = send_telegram_message(bot_token, channel_id, clean_text)
+
+    success, msg_ids, err_desc = broadcast_to_target_channels(
+        bot_token=bot_token,
+        channel_1_id=channel_1_id,
+        channel_2_id=channel_2_id,
+        ch1_paused=ch1_paused,
+        ch2_paused=ch2_paused,
+        post_target=post_target or "BOTH",
+        clean_text=clean_text,
+        image_url=image_url
+    )
     
-    if res.get("ok"):
-        msg_id = res.get("result", {}).get("message_id", "")
+    if success:
+        combined_msg_id = ", ".join(msg_ids)
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        add_log(f"  [SUCCESS] Message #{msg_id} published live to Telegram!")
+        add_log(f"  [SUCCESS] Message #{combined_msg_id} published live to Telegram!")
 
         # Update sheet status immediately
         try:
@@ -347,7 +373,7 @@ def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, 
             ).execute()
 
             # Append to Published_Archive
-            archive_row = [post_id, str(msg_id), pillar, clean_text, source_url, now_iso, 0, 0, 0]
+            archive_row = [post_id, combined_msg_id, pillar, clean_text, source_url, now_iso, 0, 0, 0]
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,
                 range="'Published_Archive'!A1",
@@ -358,11 +384,10 @@ def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, 
         except Exception as e:
             add_log(f"[ARCHIVE WARNING] {e}")
 
-        return {"ok": True, "message_id": msg_id}
+        return {"ok": True, "message_id": combined_msg_id}
     else:
-        err = res.get("description", "Unknown error")
-        add_log(f"  [!] Failed to publish: {err}")
-        return {"ok": False, "error": err}
+        add_log(f"  [!] Failed to publish: {err_desc}")
+        return {"ok": False, "error": err_desc}
 
 
 def autopilot_worker():
@@ -484,7 +509,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 new_text = payload.get("text", "")
                 new_status = payload.get("status", "APPROVED")
                 new_image_url = payload.get("image_url", "")
-                ok, msg = update_single_post(row_idx, new_text, new_status, new_image_url)
+                new_target = payload.get("post_target") or payload.get("target", "BOTH")
+                ok, msg = update_single_post(row_idx, new_text, new_status, new_image_url, new_target)
                 self._send_json({"ok": ok, "error": msg if not ok else None})
                 return
 
@@ -495,7 +521,19 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 pillar = payload.get("topic_pillar", "TECH")
                 post_id = payload.get("id", "")
                 image_url = payload.get("image_url", "")
-                res = publish_single_post_by_row(row_idx, text, url, pillar, post_id, image_url)
+                post_target = payload.get("post_target") or payload.get("target", "BOTH")
+                res = publish_single_post_by_row(row_idx, text, url, pillar, post_id, image_url, post_target)
+                self._send_json(res)
+                return
+
+            if parsed.path == "/api/send-digest":
+                from daily_digest import send_daily_digest
+                add_log("\n[DIGEST TRIGGER] Generating and sending Daily DM Digest...")
+                res = send_daily_digest(CREDENTIALS_FILE, SPREADSHEET_ID)
+                if res.get("ok"):
+                    add_log("[DIGEST SUCCESS] Daily DM Digest delivered to admin!")
+                else:
+                    add_log(f"[DIGEST WARNING] {res.get('error')}")
                 self._send_json(res)
                 return
 
