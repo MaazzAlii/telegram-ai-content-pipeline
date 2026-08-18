@@ -139,10 +139,9 @@ def generate_single_evergreen_post(pillar: str, custom_topic: str = None) -> dic
 def append_evergreen_to_sheet(post_data: dict, credentials_path: str, spreadsheet_id: str, status: str = "APPROVED") -> bool:
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
+    from fetch_feeds import ensure_credentials_file
 
-    creds_path = Path(credentials_path)
-    if not creds_path.is_absolute():
-        creds_path = BASE_DIR / credentials_path
+    creds_path = ensure_credentials_file(credentials_path)
 
     if not creds_path.exists():
         print(f"[!] Service account file not found at {creds_path}")

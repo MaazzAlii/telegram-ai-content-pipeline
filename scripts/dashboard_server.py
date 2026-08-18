@@ -29,10 +29,36 @@ SCRIPTS_DIR = BASE_DIR / "scripts"
 CREDENTIALS_FILE = "telegram-ai-pipeline-85177bbe5835.json"
 SPREADSHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "1hyAJO20O7mjbMF-BScot82wWtAij_NpBSYJhhfWUXxE")
 
-# Auto-create credentials JSON from environment variable if running on Render/Cloud
-if not (BASE_DIR / CREDENTIALS_FILE).exists() and os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"):
-    with open(BASE_DIR / CREDENTIALS_FILE, "w", encoding="utf-8") as f:
-        f.write(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
+def ensure_credentials_file() -> Path:
+    """Ensures service account credentials exist on disk from env vars or base64."""
+    creds_path = BASE_DIR / CREDENTIALS_FILE
+    if creds_path.exists():
+        return creds_path
+
+    import base64
+    content = (
+        os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+        or os.environ.get("GCP_CREDENTIALS_BASE64")
+        or os.environ.get("GOOGLE_CREDENTIALS_BASE64")
+        or ""
+    ).strip()
+
+    if content:
+        if not content.startswith("{"):
+            try:
+                decoded = base64.b64decode(content).decode("utf-8")
+                if decoded.startswith("{"):
+                    content = decoded
+            except Exception:
+                pass
+        if content.startswith("{"):
+            with open(creds_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            return creds_path
+
+    return creds_path
+
+ensure_credentials_file()
 
 LATEST_LOGS = ["Dashboard control center active. Auto-Pilot ready."]
 

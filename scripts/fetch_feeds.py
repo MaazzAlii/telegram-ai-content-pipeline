@@ -333,6 +333,38 @@ def get_existing_records(service, spreadsheet_id: str) -> tuple:
     return existing_urls, existing_titles
 
 
+def ensure_credentials_file(path_str: str = "telegram-ai-pipeline-85177bbe5835.json") -> Path:
+    """Ensures service account credentials exist on disk from env vars or base64."""
+    p = Path(path_str)
+    if not p.is_absolute():
+        p = Path(__file__).resolve().parent.parent / path_str
+    if p.exists():
+        return p
+
+    import base64
+    content = (
+        os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+        or os.environ.get("GCP_CREDENTIALS_BASE64")
+        or os.environ.get("GOOGLE_CREDENTIALS_BASE64")
+        or ""
+    ).strip()
+
+    if content:
+        if not content.startswith("{"):
+            try:
+                decoded = base64.b64decode(content).decode("utf-8")
+                if decoded.startswith("{"):
+                    content = decoded
+            except Exception:
+                pass
+        if content.startswith("{"):
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(content)
+            return p
+
+    return p
+
+
 def fetch_by_keyword(keyword: str, pillar: str, credentials_path: str, spreadsheet_id: str, max_items: int = 5) -> dict:
     """Fetch live news from Google News RSS for any custom keyword or search topic."""
     from google.oauth2 import service_account
@@ -340,6 +372,14 @@ def fetch_by_keyword(keyword: str, pillar: str, credentials_path: str, spreadshe
 
     if not keyword or not keyword.strip():
         return {"ok": False, "error": "Search keyword cannot be empty", "added": 0}
+
+    creds_file = ensure_credentials_file(credentials_path)
+    if not creds_file.exists():
+        return {
+            "ok": False,
+            "error": "Google Service Account credentials missing. Please set GOOGLE_SERVICE_ACCOUNT_JSON or GCP_CREDENTIALS_BASE64 in your Render Environment Variables.",
+            "added": 0
+        }
 
     keyword = keyword.strip()
     encoded_query = urllib.parse.quote(keyword)
@@ -353,7 +393,7 @@ def fetch_by_keyword(keyword: str, pillar: str, credentials_path: str, spreadshe
 
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     creds = service_account.Credentials.from_service_account_file(
-        credentials_path, scopes=scopes
+        str(creds_file), scopes=scopes
     )
     service = build("sheets", "v4", credentials=creds)
     existing_urls, existing_titles = get_existing_records(service, spreadsheet_id)
