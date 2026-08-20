@@ -335,7 +335,15 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
 
     # Bot permission health-check before publishing cycle
     print("\n[+] Running Bot Permission Health-Check...")
-    check_bot_permissions(bot_token, channel_1_id, channel_2_id)
+    health = check_bot_permissions(bot_token, channel_1_id, channel_2_id)
+    if not health.get("ok"):
+        ch_health = health.get("channels", {})
+        if channel_1_id and not ch_health.get("Channel 1", {}).get("ok", True):
+            print("  [HEALTH GUARD] ⚠️ Skipping Channel 1 for this cycle due to health-check permission warning.")
+            ch1_paused = True
+        if channel_2_id and not ch_health.get("Channel 2", {}).get("ok", True):
+            print("  [HEALTH GUARD] ⚠️ Skipping Channel 2 for this cycle due to health-check permission warning.")
+            ch2_paused = True
 
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     creds = service_account.Credentials.from_service_account_file(
@@ -437,13 +445,14 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
             combined_msg_id = ", ".join(msg_ids)
             print(f"  [SUCCESS] Published to Telegram! Message(s): {combined_msg_id}")
 
-            # 1. Update Content_Queue row to PUBLISHED
+            # 1. Update Content_Queue row to PUBLISHED and log per-channel result in column M
+            channel_result_log = f"OK: {combined_msg_id}" + (f" | Note: {err_desc}" if err_desc != "OK" else "")
             service.spreadsheets().values().update(
                 spreadsheetId=spreadsheet_id,
-                range=f"'Content_Queue'!H{idx}:L{idx}",
+                range=f"'Content_Queue'!H{idx}:M{idx}",
                 valueInputOption="USER_ENTERED",
                 body={
-                    "values": [["PUBLISHED", row[8] if len(row) > 8 else 0.9, row[9] if len(row) > 9 else "", now_iso, now_iso]]
+                    "values": [["PUBLISHED", row[8] if len(row) > 8 else 0.9, row[9] if len(row) > 9 else "", now_iso, now_iso, channel_result_log]]
                 }
             ).execute()
 
@@ -473,6 +482,18 @@ def publish_approved_content(credentials_path: str, spreadsheet_id: str, limit: 
             published_count += 1
         else:
             print(f"  [!] Broadcast failed: {err_desc}")
+            service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=f"'Content_Queue'!H{idx}",
+                valueInputOption="USER_ENTERED",
+                body={"values": [["FAILED"]]}
+            ).execute()
+            service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=f"'Content_Queue'!M{idx}",
+                valueInputOption="USER_ENTERED",
+                body={"values": [[f"Broadcast Failed: {err_desc}"]]}
+            ).execute()
 
     print(f"\n[SUMMARY] Successfully published {published_count} post(s) to Telegram!\n")
 

@@ -365,11 +365,12 @@ def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, 
 
         # Update sheet status immediately
         try:
+            channel_result_log = f"OK: {combined_msg_id}" + (f" | Note: {err_desc}" if err_desc != "OK" else "")
             service.spreadsheets().values().update(
                 spreadsheetId=SPREADSHEET_ID,
-                range=f"'Content_Queue'!H{row_index}:L{row_index}",
+                range=f"'Content_Queue'!H{row_index}:M{row_index}",
                 valueInputOption="USER_ENTERED",
-                body={"values": [["PUBLISHED", 0.95, "", now_iso, now_iso]]}
+                body={"values": [["PUBLISHED", 0.95, "", now_iso, now_iso, channel_result_log]]}
             ).execute()
 
             # Append to Published_Archive
@@ -387,6 +388,21 @@ def publish_single_post_by_row(row_index: int, post_text: str, source_url: str, 
         return {"ok": True, "message_id": combined_msg_id}
     else:
         add_log(f"  [!] Failed to publish: {err_desc}")
+        try:
+            service.spreadsheets().values().update(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"'Content_Queue'!H{row_index}",
+                valueInputOption="USER_ENTERED",
+                body={"values": [["FAILED"]]}
+            ).execute()
+            service.spreadsheets().values().update(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"'Content_Queue'!M{row_index}",
+                valueInputOption="USER_ENTERED",
+                body={"values": [[f"Broadcast Failed: {err_desc}"]]}
+            ).execute()
+        except Exception:
+            pass
         return {"ok": False, "error": err_desc}
 
 
